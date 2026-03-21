@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      /* MARGIN KANAN & KIRI DISAMAKAN AGAR SIMETRIS */
+      @page {
+        size: A4 landscape;
+        margin-top: 1.228cm;
+        margin-right: 0.5cm; /* Diubah agar sama dengan margin kiri */
+        margin-bottom: 3.916cm;
+        margin-left: 0.5cm; /* Diubah agar ada jarak dari tepi kertas */
+      }
+
+
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 8pt; /* UKURAN HURUF DIKECILKAN MENJADI 8pt */
+        color: #000;
+        margin: 0;
+        padding: 0;
+      }
+
+
+      .judul {
+        text-align: center;
+        font-size: 11pt; /* Judul disesuaikan sedikit agar proporsional */
+        font-weight: bold;
+        margin-bottom: 8px;
+        margin-top: 5px;
+      }
+
+
+      /* KOP SURAT / HEADER TABLE - PRESISI 8 KOLOM */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        page-break-inside: avoid;
+      }
+      .table-kop {
+        margin-bottom: 8px;
+      }
+      .table-kop td {
+        border: 1px solid #000;
+        padding: 2px 4px; /* Diberi sedikit ruang karena huruf sudah 8pt */
+        height: 16px;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+
+
+      /* TABEL DATA PERJALANAN - PRESISI 12 KOLOM */
+      .table-data td,
+      .table-data th {
+        border: 1px solid #000;
+        padding: 2px 4px;
+        height: 16px;
+        vertical-align: middle;
+      }
+      .table-data th {
+        text-align: center;
+        font-weight: normal;
+      }
+
+
+      /* TABEL TANDA TANGAN */
+      .table-ttd {
+        width: 60%;
+        margin-top: 5px;
+      }
+      .table-ttd th,
+      .table-ttd td {
+        border: 1px solid #000;
+        padding: 2px;
+        text-align: center;
+        vertical-align: top;
+      }
+      .table-ttd th {
+        font-weight: normal;
+      }
+
+
+      /* UTILITIES */
+      .text-center {
+        text-align: center;
+      }
+      .text-right {
+        text-align: right;
+      }
+      .text-left {
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="judul">LAPORAN DEKLARASI PERJALANAN DINAS</div>
+
+
+    <table class="table-kop">
+      <tr>
+        <td style="width: 14%">No. Surat Tugas</td>
+        <td style="width: 20%">: <?= data.st_format ?></td>
+        <td style="width: 14%">NAMA</td>
+        <td style="width: 15%">: <?= data.nama ?></td>
+        <td style="width: 14%">Tgl / Jam Berangkat</td>
+        <td style="width: 8%">: <?= data.berangkat ?></td>
+        <td style="width: 15%">Cabang / Site / Customer</td>
+        <td style="width: 10%">: <?= data.customer ?></td>
+      </tr>
+      <tr>
+        <td>No. Work Order</td>
+        <td>:</td>
+        <td>Dept / Cost Center</td>
+        <td>:</td>
+        <td>Tgl / Jam Kembali</td>
+        <td>: <?= data.kembali ?></td>
+        <td>Lokasi</td>
+        <td>: <?= data.lokasi ?></td>
+      </tr>
+      <tr>
+        <td>No. SR</td>
+        <td>:</td>
+        <td>Jabatan / Golongan</td>
+        <td>:</td>
+        <td>Tiket Pesawat</td>
+        <td>: Beli Sendiri / Kantor **)</td>
+        <td>No. Polisi / Kendaraan*)</td>
+        <td>: <?= data.plat ?></td>
+      </tr>
+      <tr>
+        <td>No. Invoice</td>
+        <td>:</td>
+        <td>No. Dokumen</td>
+        <td>:</td>
+        <td>Radius / Jam</td>
+        <td>:</td>
+        <td></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Uraian Pekerjaan</td>
+        <td colspan="3">: PM/INSTALL PART/TROUBLESHOOTING</td>
+        <td>Keterangan</td>
+        <td colspan="3">: Waranty / Non Waranty / Visit / Lain2**)</td>
+      </tr>
+    </table>
+
+
+    <table class="table-data">
+      <thead>
+        <tr>
+          <th rowspan="2" style="width: 14%">Tanggal</th>
+          <th rowspan="2" style="width: 15%">Keterangan</th>
+          <th rowspan="2" style="width: 7%">Transport*)</th>
+          <th rowspan="2" style="width: 6%">Hotel</th>
+          <th rowspan="2" style="width: 7%">UPD / TLM</th>
+          <th colspan="4" style="width: 22%">Makan</th>
+          <th rowspan="2" style="width: 7%">Entertain</th>
+          <th rowspan="2" style="width: 10%">Lain-Lain</th>
+          <th rowspan="2" style="width: 12%">Total<br />Seluruh</th>
+        </tr>
+        <tr>
+          <th style="width: 5%">Pagi</th>
+          <th style="width: 5%">Siang</th>
+          <th style="width: 6%">Malam</th>
+          <th style="width: 6%">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <? var totalBaris = data.trips.length; var batasBarisTetap = 10; for (var i = 0; i < totalBaris; i++) { ?>
+        <tr>
+          <td class="text-left"><?= data.trips[i].tanggalStr ?></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td class="text-right">
+            <?= data.trips[i].upd_tlm >
+            0 ? data.trips[i].upd_tlm.toLocaleString('id-ID') : '0' ?>
+          </td>
+          <td class="text-right"></td>
+          <td class="text-right">
+            <?= data.trips[i].makan_siang >
+            0 ? data.trips[i].makan_siang.toLocaleString('id-ID') : '0' ?>
+          </td>
+          <td class="text-right"></td>
+          <td class="text-right">
+            <?= data.trips[i].makan_total >
+            0 ? data.trips[i].makan_total.toLocaleString('id-ID') : '0' ?>
+          </td>
+          <td></td>
+          <td class="text-right">
+            <?= data.trips[i].lain_lain >
+            0 ? data.trips[i].lain_lain.toLocaleString('id-ID') : '0' ?>
+          </td>
+          <td class="text-right">
+            <?= data.trips[i].total >
+            0 ? data.trips[i].total.toLocaleString('id-ID') : '0' ?>
+          </td>
+        </tr>
+        <? } ?> <? for (var j = totalBaris; j < batasBarisTetap; j++) { ?>
+        <tr>
+          <td>&nbsp;</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <? } ?>
+
+
+        <tr>
+          <td colspan="9" rowspan="3" style="border: none; border-top: 1px solid #000; text-align: left; vertical-align: top; padding-top: 6px">
+            NOTE :<br />
+            *) Dilampirkan dengan formulir pengeluaran untuk kendaraan (bila menggunakan kendaraan kantor)<br />
+            **) Coret yang tidak perlu
+          </td>
+          <td colspan="2" class="text-left" style="border: 1px solid #000">Total</td>
+          <td class="text-right" style="border: 1px solid #000"><?= data.grandTotal.toLocaleString('id-ID') ?></td>
+        </tr>
+        <tr>
+          <td colspan="2" class="text-left" style="border: 1px solid #000">Uang Muka / Advance No.&nbsp;&nbsp;&nbsp;<?= data.st_format ?></td>
+          <td class="text-right" style="border: 1px solid #000">0</td>
+        </tr>
+        <tr>
+          <td colspan="2" class="text-left" style="border: 1px solid #000">Kekurangan / Kelebihan**)</td>
+          <td class="text-right" style="border: 1px solid #000">-<?= data.grandTotal.toLocaleString('id-ID') ?></td>
+        </tr>
+      </tbody>
+    </table>
+
+
+    <table class="table-ttd">
+      <tr>
+        <th rowspan="2" style="width: 25%; vertical-align: middle">Disusun oleh,</th>
+        <th colspan="2">Diperiksa Oleh,</th>
+        <th rowspan="2" style="width: 25%; vertical-align: middle">Disetujui Finance Dept</th>
+      </tr>
+      <tr>
+        <th style="width: 25%">Dept./Div.Head/Director</th>
+        <th style="width: 25%">HRGA Div</th>
+      </tr>
+      <tr>
+        <td style="height: 50px; vertical-align: bottom"><?= data.nama ?></td>
+        <td style="height: 50px"></td>
+        <td style="height: 50px"></td>
+        <td style="height: 50px"></td>
+      </tr>
+    </table>
+  </body>
+</html>

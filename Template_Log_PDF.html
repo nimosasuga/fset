@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      @page {
+        size: A4 landscape;
+        margin: 1.5cm;
+      }
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-size: 9pt;
+        color: #333;
+        margin: 0;
+        padding: 0;
+      }
+      .kop-perusahaan {
+        font-size: 16pt;
+        font-weight: 900;
+        color: #000;
+        letter-spacing: 1px;
+      }
+      .header-title {
+        font-size: 12pt;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: #555;
+        border-bottom: 2px solid #000;
+        padding-bottom: 8px;
+        margin-bottom: 20px;
+      }
+      .info-table {
+        width: 100%;
+        margin-bottom: 20px;
+        font-size: 10pt;
+      }
+      .info-table td {
+        padding: 4px 0;
+      }
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 30px;
+      }
+      .data-table th,
+      .data-table td {
+        border: 1px solid #000;
+        padding: 8px 6px;
+        text-align: center;
+        vertical-align: middle;
+      }
+      .data-table th {
+        background-color: #f0f0f0;
+        font-weight: bold;
+        color: #000;
+        text-transform: uppercase;
+        font-size: 8.5pt;
+      }
+      .text-left {
+        text-align: left !important;
+      }
+      .text-right {
+        text-align: right !important;
+      }
+
+      /* Format Lencana Validasi */
+      .badge-app {
+        color: #155724;
+        font-weight: bold;
+      }
+      .badge-pen {
+        color: #856404;
+        font-weight: bold;
+      }
+      .badge-adj {
+        color: #0c5460;
+        font-weight: bold;
+      }
+
+      /* Footer & Tanda Tangan */
+      .footer-container {
+        width: 100%;
+        margin-top: 40px;
+        page-break-inside: avoid;
+      }
+      .ttd-box {
+        width: 30%;
+        text-align: center;
+        float: left;
+      }
+      .ttd-title {
+        font-weight: bold;
+        margin-bottom: 60px;
+      }
+      .ttd-name {
+        font-weight: bold;
+        text-decoration: underline;
+      }
+      .disclaimer-box {
+        width: 65%;
+        float: right;
+        text-align: right;
+        font-size: 8.5pt;
+        color: #555;
+        font-style: italic;
+        margin-top: 30px;
+      }
+      .clear {
+        clear: both;
+      }
+    </style>
+  </head>
+  <body>
+    <table style="width: 100%; margin-bottom: 10px">
+      <tr>
+        <td class="kop-perusahaan">FSET SYSTEM</td>
+        <td style="text-align: right; font-size: 9pt">Form: FSET-LOG-02<br />Rev: 01</td>
+      </tr>
+    </table>
+
+    <div class="header-title">LAMPIRAN BUKTI PERJALANAN DINAS</div>
+
+    <table class="info-table">
+      <tr>
+        <td style="width: 15%"><strong>Nama Karyawan</strong></td>
+        <td style="width: 45%">: <?= data.nama ?></td>
+        <td style="width: 15%"><strong>Nomor ST</strong></td>
+        <td style="width: 25%">
+          : <strong><?= data.st ?></strong>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>NRPP</strong></td>
+        <td>: <?= data.nrpp ?></td>
+        <td><strong>Waktu Cetak</strong></td>
+        <td>: <?= data.tglCetak ?></td>
+      </tr>
+    </table>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 12%">Waktu Keluar</th>
+          <th style="width: 12%">Waktu Masuk</th>
+          <th style="width: 26%">Customer & Lokasi</th>
+          <th style="width: 10%">Durasi</th>
+          <th style="width: 15%">Total UPD</th>
+          <th style="width: 12%">Status Trip</th>
+          <th style="width: 13%">Status Validasi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <? if (data.log.length === 0) { ?>
+        <tr>
+          <td colspan="7" style="padding: 20px; color: #888">Tidak ada data log perjalanan untuk ST ini.</td>
+        </tr>
+        <? } else { ?> <? for (var i = 0; i < data.log.length; i++) { var valClass = ""; if (data.log[i].validasi === "APPROVED") valClass = "badge-app"; else if (data.log[i].validasi === "ADJUSTED") valClass = "badge-adj"; else valClass =
+        "badge-pen"; ?>
+        <tr>
+          <td><?= data.log[i].tgl_keluar ?></td>
+          <td><?= data.log[i].tgl_masuk ?></td>
+          <td class="text-left">
+            <?= data.log[i].customer ?>
+            <br /><span style="color: #666; font-size: 8pt"><?= data.log[i].lokasi ?></span>
+          </td>
+          <td><?= data.log[i].durasi ?></td>
+          <td class="text-right">
+            <strong><?= data.log[i].upd ?></strong>
+          </td>
+          <td><?= data.log[i].status ?></td>
+          <td class="<?= valClass ?>"><?= data.log[i].validasi ?></td>
+        </tr>
+        <? } ?> <? } ?>
+      </tbody>
+    </table>
+
+    <div class="footer-container">
+      <div class="ttd-box">
+        <div class="ttd-title">Divalidasi Oleh,</div>
+        <div class="ttd-name">HRD</div>
+      </div>
+
+      <div class="disclaimer-box">
+        <strong>Catatan Resmi:</strong><br />
+        Dokumen ini dicetak dan divalidasi secara otomatis melalui Sistem FSET.<br />
+        Informasi yang tertera di atas adalah sah dan dapat digunakan sebagai dasar<br />
+        pencairan dana UPD maupun audit operasional perusahaan.
+      </div>
+      <div class="clear"></div>
+    </div>
+  </body>
+</html>

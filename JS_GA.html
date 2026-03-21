@@ -1,0 +1,398 @@
+<script>
+  let globalDataIzinGA = [];
+  let globalAnalyticsFleet = {};
+  let globalDataArsipGA = [];
+
+  // Variabel Baru untuk Radar Real-Time
+  let globalTotalIzinServer = 0;
+  let intervalRadarGA = null;
+
+  function loadAdminGADashboard() {
+    kembaliKeMenuGA();
+
+    document.getElementById("tableAdminGA").innerHTML = '<tr><td colspan="8" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary"></i><br>Memuat Data...</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        globalDataIzinGA = res;
+        globalTotalIzinServer = res.length; // Simpan jumlah data awal ke memori
+        renderTabelIzinGA(res);
+
+        // Nyalakan Radar Real-Time setelah data pertama berhasil dimuat
+        nyalakanRadarNotifikasiGA();
+      })
+      .getIzinKendaraanData();
+  }
+
+  // --- FUNGSI BARU: RADAR REAL-TIME & AUTO REFRESH ---
+  function nyalakanRadarNotifikasiGA() {
+    // Matikan radar lama jika ada, agar tidak dobel
+    if (intervalRadarGA) clearInterval(intervalRadarGA);
+
+    // Radar akan mengecek ke server setiap 10 detik (10.000 milidetik)
+    intervalRadarGA = setInterval(() => {
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res && res.hasNew) {
+            globalTotalIzinServer = res.totalBaru; // Update angka target
+
+            // 1. Mainkan Suara Notifikasi (Efek Ting!)
+            let audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+            audio.play().catch((e) => console.log("Auto-play suara ditahan browser"));
+
+            // 2. Munculkan Pop-up Melayang (Toast)
+            Swal.fire({
+              toast: true,
+              position: "top-end",
+              icon: "info",
+              title: "Ada Pengajuan Izin Baru Masuk!",
+              showConfirmButton: false,
+              timer: 4000,
+            });
+
+            // 3. Tarik ulang data tabel SECARA DIAM-DIAM (Tanpa merusak layar)
+            refreshTabelGABackground();
+          }
+        })
+        .cekNotifikasiIzinBaruGA(globalTotalIzinServer);
+    }, 10000);
+  }
+
+  // Tarik data baru tanpa memunculkan tulisan "Memuat..." yang mengganggu
+  function refreshTabelGABackground() {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        globalDataIzinGA = res;
+        globalTotalIzinServer = res.length;
+
+        // Jika GA sedang membuka menu "Persetujuan", langsung render tabelnya
+        if (document.getElementById("gaSubApplications").style.display === "block") {
+          renderTabelIzinGA(res);
+        }
+      })
+      .getIzinKendaraanData();
+  }
+
+  // --- FUNGSI NAVIGASI INTERAKTIF GA (ANTI SCROLL) ---
+  function kembaliKeMenuGA() {
+    document.getElementById("gaMainMenu").style.display = "flex";
+    document.getElementById("gaSubApplications").style.display = "none";
+    document.getElementById("gaSubAnalytics").style.display = "none";
+    document.getElementById("gaSubArchive").style.display = "none";
+  }
+
+  function bukaGAAplikasi() {
+    document.getElementById("gaMainMenu").style.display = "none";
+    document.getElementById("gaSubApplications").style.display = "block";
+    // Data tabel sudah dimuat saat loadAdminGADashboard
+  }
+
+  function bukaGAAnalitik() {
+    document.getElementById("gaMainMenu").style.display = "none";
+    document.getElementById("gaSubAnalytics").style.display = "block";
+
+    document.getElementById("gaTotalBulanIni").innerHTML = '<i class="fa-solid fa-spinner fa-spin text-muted fs-4"></i>';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res && res.success === false) {
+          return Swal.fire("Error Database", res.pesan, "error");
+        }
+
+        // 1. Render Angka Total Bulan Ini
+        document.getElementById("gaTotalBulanIni").innerText = "Rp " + (res.totalBulanIni || 0).toLocaleString("id-ID");
+        document.getElementById("gaBreakdownBBM").innerText = "Rp " + (res.bbmBulanIni || 0).toLocaleString("id-ID");
+        document.getElementById("gaBreakdownTol").innerText = "Rp " + (res.tolBulanIni || 0).toLocaleString("id-ID");
+        document.getElementById("gaBreakdownParkir").innerText = "Rp " + ((res.parkirBulanIni || 0) + (res.lainBulanIni || 0)).toLocaleString("id-ID");
+
+        // 2. Render Dropdown Filter Kartu Fleet
+        globalAnalyticsFleet = res.breakdownFleet || {};
+        let selectEl = document.getElementById("gaSelectFleet");
+
+        // Kosongkan opsi lama
+        selectEl.innerHTML = "";
+
+        // Opsi Default (Placeholder)
+        let optDefault = document.createElement("option");
+        optDefault.value = "";
+        optDefault.text = "Pilih Nomor Kartu Fleet...";
+        optDefault.disabled = true;
+        optDefault.selected = true;
+        selectEl.appendChild(optDefault);
+
+        // Isi opsi dari data Backend
+        if (res.listFleet && res.listFleet.length > 0) {
+          res.listFleet.forEach((f) => {
+            let opt = document.createElement("option");
+            opt.value = f;
+            opt.text = (f === "TANPA KARTU (CASH)" ? "💸 " : "💳 ") + f;
+            selectEl.appendChild(opt);
+          });
+        } else {
+          optDefault.text = "Belum ada pengeluaran bulan ini";
+        }
+
+        document.getElementById("gaFleetDetailContainer").style.display = "none";
+      })
+      .getDashboardAnalyticsGA();
+  }
+
+  function bukaGAArsip() {
+    document.getElementById("gaMainMenu").style.display = "none";
+    document.getElementById("gaSubArchive").style.display = "block";
+
+    // Tampilkan Loading di Dropdown Arsip
+    document.getElementById("gaSelectArsip").innerHTML = "<option>Memuat brankas...</option>";
+
+    // Memuat Daftar Brankas Arsip
+    google.script.run
+      .withSuccessHandler(function (list) {
+        let sel = document.getElementById("gaSelectArsip");
+        sel.innerHTML = '<option value="" selected disabled>Pilih Tahun Arsip...</option>';
+        if (list.length === 0) {
+          sel.innerHTML = "<option>Belum ada arsip.</option>";
+          return;
+        }
+        list.forEach((a) => {
+          sel.innerHTML += `<option value="${a}">${a.replace("Arsip_Kendaraan_", "Tahun ")}</option>`;
+        });
+        // Sembunyikan tabel & filter arsip sebelumnya
+        document.getElementById("tableArsipGA").innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Pilih brankas arsip di atas.</td></tr>';
+        document.getElementById("filterArsipContainer").style.display = "none";
+      })
+      .getListArsipKendaraan();
+  }
+
+  // --- FUNGSI LOGIKA DATA & TABEL ---
+
+  // --- PERBAIKAN: Mengambil Saldo Asli dari Database Mutasi ---
+  function renderTabelIzinGA(res) {
+    let html = "";
+    if (res.length === 0) {
+      html = '<tr><td colspan="8" class="text-center text-muted py-4">Belum ada data pengajuan.</td></tr>';
+    } else {
+      res.forEach((item) => {
+        let badgeStatus = "";
+        if (item.status === "PENDING") badgeStatus = `<span class="badge bg-warning text-dark">PENDING</span>`;
+        else if (item.status === "APPROVED") badgeStatus = `<span class="badge bg-success">APPROVED</span>`;
+        else if (item.status === "REJECTED") badgeStatus = `<span class="badge bg-danger">REJECTED</span>`;
+        else badgeStatus = `<span class="badge bg-secondary">${item.status}</span>`;
+
+        let actionBtns = `<button class="btn btn-sm btn-light border text-primary shadow-sm mb-1 me-2" onclick="bukaModalEditIzinGA('${item.id}')" title="Koreksi Data"><i class="fa-solid fa-pen-to-square"></i></button>`;
+        if (item.status === "PENDING")
+          actionBtns += `<button class="btn btn-sm btn-success me-1 shadow-sm mb-1" onclick="aksiIzinGA('${item.id}', 'APPROVED')"><i class="fa-solid fa-check"></i></button><button class="btn btn-sm btn-danger shadow-sm mb-1" onclick="aksiIzinGA('${item.id}', 'REJECTED')"><i class="fa-solid fa-xmark"></i></button>`;
+        else actionBtns += `<span class="text-muted small fw-bold"><i class="fa-solid fa-lock"></i> Selesai</span>`;
+
+        // PERUBAHAN MUTLAK: Saldo ditarik dari kolom S Database, bukan dihitung manual di layar
+        let saldo = item.saldo || 0;
+        let warnaSaldo = saldo < 0 ? "text-danger" : "text-success";
+
+        let infoBiaya = `
+          <div class="text-start mx-auto" style="font-size: 0.75rem; min-width: 140px; max-width: 160px;">
+            <div class="input-group input-group-sm mb-1 shadow-sm"><span class="input-group-text bg-light text-muted px-1 border-end-0">TopUp</span><input type="number" id="quick-topup-${item.id}" class="form-control px-1 border-start-0 text-primary fw-bold" style="font-size: 0.75rem;" value="${item.topup == 0 ? "" : item.topup}" placeholder="0"><button class="btn btn-primary px-2" onclick="simpanQuickTopUp('${item.id}', this)"><i class="fa-solid fa-save"></i></button></div>
+            <div class="d-flex justify-content-between px-1"><span class="text-muted">Biaya:</span> <span>Rp ${item.totalBiaya.toLocaleString("id-ID")}</span></div>
+            <div class="d-flex justify-content-between px-1 border-top mt-1 pt-1"><span class="fw-bold ${warnaSaldo}">Saldo:</span> <span class="fw-bold ${warnaSaldo}">Rp ${saldo.toLocaleString("id-ID")}</span></div>
+          </div>`;
+
+        html += `<tr><td><strong class="text-dark">${item.plat}</strong><br><small>${item.waktu}</small></td><td><strong class="text-primary">${item.nama}</strong><br><small>${item.departemen}</small></td><td class="text-start" style="font-size:0.75rem; max-width: 150px;">${item.partner}</td><td class="text-start"><strong>${item.customer}</strong><br><small class="text-truncate d-inline-block" style="max-width: 150px;" title="${item.alamat}">${item.alamat}</small></td><td><small>KM: ${item.km}<br>Fleet: ${item.fleet}</small></td><td>${infoBiaya}</td><td>${badgeStatus}</td><td class="text-nowrap">${actionBtns}</td></tr>`;
+      });
+    }
+    document.getElementById("tableAdminGA").innerHTML = html;
+  }
+
+  function renderFleetDetail() {
+    let val = document.getElementById("gaSelectFleet").value;
+    let data = globalAnalyticsFleet[val];
+
+    if (!val || !data) {
+      document.getElementById("gaFleetDetailContainer").style.display = "none";
+      return;
+    }
+
+    document.getElementById("gaFleetDetailContainer").style.display = "block";
+    document.getElementById("lblFleetTotal").innerText = "Rp " + data.total.toLocaleString("id-ID");
+    document.getElementById("lblFleetBBM").innerText = "Rp " + data.bbm.toLocaleString("id-ID");
+    document.getElementById("lblFleetTol").innerText = "Rp " + data.tol.toLocaleString("id-ID");
+    document.getElementById("lblFleetParkir").innerText = "Rp " + data.parkir.toLocaleString("id-ID");
+    document.getElementById("lblFleetLain").innerText = "Rp " + data.lain.toLocaleString("id-ID");
+  }
+
+  function lihatArsipGA() {
+    let val = document.getElementById("gaSelectArsip").value;
+    if (!val) return Swal.fire("Peringatan", "Pilih arsip terlebih dahulu", "warning");
+
+    document.getElementById("tableArsipGA").innerHTML = '<tr><td colspan="6" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin text-warning"></i> Membuka...</td></tr>';
+    document.getElementById("filterArsipContainer").style.display = "none";
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        globalDataArsipGA = res;
+
+        let uniqueFleets = [...new Set(res.map((item) => item.fleet).filter((f) => f !== "-" && f !== ""))].sort();
+        let fleetSelect = document.getElementById("filterArsipFleet");
+        fleetSelect.innerHTML = '<option value="ALL">Semua Fleet</option>';
+        uniqueFleets.forEach((f) => {
+          fleetSelect.innerHTML += `<option value="${f}">${f}</option>`;
+        });
+
+        document.getElementById("filterArsipBulan").value = "ALL";
+        document.getElementById("filterArsipFleet").value = "ALL";
+
+        if (res.length > 0) {
+          document.getElementById("filterArsipContainer").style.display = "flex";
+        }
+        terapkanFilterArsip();
+      })
+      .getArsipKendaraanDetail(val);
+  }
+
+  function terapkanFilterArsip() {
+    let filterBulan = document.getElementById("filterArsipBulan").value;
+    let filterFleet = document.getElementById("filterArsipFleet").value;
+
+    let filteredData = globalDataArsipGA.filter((item) => {
+      let matchBulan = true;
+      let matchFleet = true;
+      if (filterBulan !== "ALL") {
+        let bulanItem = item.waktu.split("/")[1];
+        matchBulan = bulanItem === filterBulan;
+      }
+      if (filterFleet !== "ALL") {
+        matchFleet = item.fleet === filterFleet;
+      }
+      return matchBulan && matchFleet;
+    });
+
+    renderTabelArsipGA(filteredData);
+  }
+
+  function renderTabelArsipGA(data) {
+    let html = "";
+    if (data.length === 0) {
+      html = '<tr><td colspan="6" class="text-center py-4 text-muted">Data tidak ditemukan.</td></tr>';
+    } else {
+      data.forEach((r) => {
+        html += `<tr><td>${r.waktu}</td><td><strong class="text-primary">${r.nama}</strong></td><td><strong class="text-dark">${r.plat}</strong><br><small class="text-muted">Fleet: ${r.fleet}</small></td><td class="text-start text-truncate" style="max-width:150px;" title="${r.customer}">${r.customer}</td><td class="text-danger fw-bold">Rp ${r.totalBiaya.toLocaleString("id-ID")}</td><td class="text-success fw-bold">Rp ${r.topup.toLocaleString("id-ID")}</td></tr>`;
+      });
+    }
+    document.getElementById("tableArsipGA").innerHTML = html;
+  }
+
+  // --- PERBAIKAN: Refresh layar setelah simpan agar efek mutasi berantai terlihat ---
+  function simpanQuickTopUp(idIzin, btnElement) {
+    let nominalInput = document.getElementById("quick-topup-" + idIzin).value;
+    let originalHtml = btnElement.innerHTML;
+    btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    btnElement.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res.success) {
+          Swal.fire({ toast: true, position: "top-end", icon: "success", title: "Mutasi Disimpan", showConfirmButton: false, timer: 1500 });
+          loadAdminGADashboard(); // Tarik ulang seluruh tabel untuk melihat efek perubahannya
+        } else {
+          Swal.fire("Gagal", res.pesan, "error");
+          btnElement.innerHTML = originalHtml;
+          btnElement.disabled = false;
+        }
+      })
+      .quickSaveTopUpGA(idIzin, nominalInput);
+  }
+
+  function aksiIzinGA(idIzin, aksi) {
+    let warnaBtn = aksi === "APPROVED" ? "#10b981" : "#e11d48";
+    Swal.fire({
+      title: "Konfirmasi",
+      text: `Apakah Anda yakin ingin ${aksi === "APPROVED" ? "menyetujui" : "menolak"} izin ini?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: warnaBtn,
+      confirmButtonText: "Ya, Lanjutkan",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({ title: "Memproses...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res.success) {
+              Swal.fire("Sukses!", res.pesan, "success");
+
+              // Update data local & render ulang tabel izin
+              const itemIndex = globalDataIzinGA.findIndex((item) => item.id === idIzin);
+              if (itemIndex > -1) {
+                globalDataIzinGA[itemIndex].status = aksi;
+                renderTabelIzinGA(globalDataIzinGA);
+              }
+            } else {
+              Swal.fire("Gagal", res.pesan, "error");
+            }
+          })
+          .updateStatusIzinGA(idIzin, aksi);
+      }
+    });
+  }
+
+  function bukaModalEditIzinGA(idIzin) {
+    const data = globalDataIzinGA.find((item) => item.id === idIzin);
+    if (!data) return;
+
+    Swal.fire({
+      title: "Koreksi Data Izin",
+      html: `
+        <div class="text-start mt-2" style="max-height: 65vh; overflow-y: auto; padding-right: 5px;">
+          <div class="alert bg-light border py-2 small mb-3 text-muted"><i class="fa-solid fa-circle-info text-primary me-1"></i> GA dapat mengkoreksi rincian perjalanan & biaya.</div>
+          <div class="row"><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Plat</label><input type="text" id="edit-ga-plat" class="form-control form-control-sm mb-2" value="${data.plat}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Dept</label><input type="text" id="edit-ga-dept" class="form-control form-control-sm mb-2" value="${data.departemen}"></div></div>
+          <label class="form-label small fw-bold mb-1 text-dark">Partner</label><input type="text" id="edit-ga-partner" class="form-control form-control-sm mb-2" value="${data.partner}">
+          <label class="form-label small fw-bold mb-1 text-dark">Customer</label><input type="text" id="edit-ga-cust" class="form-control form-control-sm mb-2" value="${data.customer}">
+          <label class="form-label small fw-bold mb-1 text-dark">Alamat</label><textarea id="edit-ga-alamat" class="form-control form-control-sm mb-3" rows="2">${data.alamat}</textarea>
+          <div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">KM Awal</label><input type="number" id="edit-ga-km" class="form-control form-control-sm" value="${data.km}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Kartu Fleet</label><input type="text" id="edit-ga-fleet" class="form-control form-control-sm" value="${data.fleet}"></div></div>
+          <h6 class="fw-bold text-primary border-bottom pb-1 mb-2 mt-3">Keuangan Fleet</h6>
+          <label class="form-label small fw-bold mb-1 text-dark">Top Up Fleet (Rp)</label><input type="number" id="edit-ga-topup" class="form-control form-control-sm mb-3 border-primary" style="background-color: #f8fafc;" value="${data.topup}">
+          <h6 class="fw-bold text-dark border-bottom pb-1 mb-2">Breakdown Biaya (Rp)</h6>
+          <div class="row"><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">BBM</label><input type="number" id="edit-ga-bbm" class="form-control form-control-sm mb-2" value="${data.bbm}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">TOL</label><input type="number" id="edit-ga-tol" class="form-control form-control-sm mb-2" value="${data.tol}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Parkir</label><input type="number" id="edit-ga-parkir" class="form-control form-control-sm mb-2" value="${data.parkir}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Lain2</label><input type="number" id="edit-ga-lain" class="form-control form-control-sm mb-2" value="${data.lain}"></div></div>
+        </div>`,
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-save me-1"></i> Simpan',
+      cancelButtonText: "Batal",
+      focusConfirm: false,
+      customClass: { confirmButton: "btn btn-primary-saas px-4", cancelButton: "btn btn-light border px-4" },
+      preConfirm: () => {
+        return {
+          plat: document.getElementById("edit-ga-plat").value,
+          departemen: document.getElementById("edit-ga-dept").value,
+          partner: document.getElementById("edit-ga-partner").value,
+          customer: document.getElementById("edit-ga-cust").value,
+          alamat: document.getElementById("edit-ga-alamat").value,
+          km: document.getElementById("edit-ga-km").value || 0,
+          fleet: document.getElementById("edit-ga-fleet").value,
+          topup: document.getElementById("edit-ga-topup").value || 0,
+          bbm: document.getElementById("edit-ga-bbm").value || 0,
+          tol: document.getElementById("edit-ga-tol").value || 0,
+          parkir: document.getElementById("edit-ga-parkir").value || 0,
+          lain: document.getElementById("edit-ga-lain").value || 0,
+        };
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({ title: "Menyimpan...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res.success) {
+              Swal.fire("Sukses!", res.pesan, "success");
+
+              // Update data local (Tabel Izin)
+              const itemIndex = globalDataIzinGA.findIndex((item) => item.id === idIzin);
+              if (itemIndex > -1) {
+                const d = result.value;
+                let total = parseFloat(d.bbm) + parseFloat(d.tol) + parseFloat(d.parkir) + parseFloat(d.lain);
+                globalDataIzinGA[itemIndex] = { ...globalDataIzinGA[itemIndex], ...d, totalBiaya: total };
+                renderTabelIzinGA(globalDataIzinGA);
+              }
+            } else {
+              Swal.fire("Gagal", res.pesan, "error");
+            }
+          })
+          .updateKoreksiIzinGA(idIzin, result.value);
+      }
+    });
+  }
+</script>

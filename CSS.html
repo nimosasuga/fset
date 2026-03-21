@@ -1,0 +1,388 @@
+<style>
+  /* ================================================================= */
+  /* 1. SAAS DESIGN SYSTEM VARIABLES & FONT */
+  /* ================================================================= */
+  @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+  :root {
+    --bg-main: #f8fafc;
+    --card-bg: #ffffff;
+    --card-border: #e2e8f0;
+
+    --color-primary: #4f46e5;
+    --color-primary-hover: #4338ca;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #e11d48;
+    --color-info: #0ea5e9;
+
+    --text-dark: #0f172a;
+    --text-muted: #64748b;
+
+    --shadow-saas: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-indigo: 0 4px 14px 0 rgba(79, 70, 229, 0.39);
+
+    --radius-card: 1.5rem;
+    --radius-btn: 0.75rem;
+    --radius-input: 0.75rem;
+  }
+
+  /* ================================================================= */
+  /* 2. BASE STYLES & LAYOUT LOCKS */
+  /* ================================================================= */
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100vw;
+    background-color: var(--bg-main);
+    font-family: "Inter", sans-serif;
+    color: var(--text-dark);
+    -webkit-font-smoothing: antialiased;
+    overflow-y: scroll !important;
+    padding-right: 0 !important;
+
+    /* PERBAIKAN NAVBAR FIXED: Menambahkan jarak atas agar konten tidak tertutup */
+    padding-top: 80px;
+  }
+
+  /* ================================================================= */
+  /* 3. NAVBAR & OFFCANVAS (SIDEBAR) MODERN */
+  /* ================================================================= */
+  .navbar-app {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(8px); /* Efek kaca kekinian */
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--card-border);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    min-height: 60px;
+  }
+  .navbar-brand {
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text-dark) !important;
+  }
+
+  .offcanvas {
+    background-color: var(--bg-main);
+    border-right: none !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.04);
+  }
+  .offcanvas-header-custom {
+    padding: 30px 20px 20px;
+    text-align: center;
+  }
+
+  .list-group-item {
+    background-color: transparent;
+    border: none;
+    padding: 12px 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-radius: var(--radius-btn);
+    margin: 4px 15px;
+    transition: all 0.2s ease;
+  }
+  .list-group-item:hover,
+  .list-group-item:focus {
+    background-color: #e0e7ff;
+    color: var(--color-primary);
+    transform: translateX(5px);
+  }
+  .list-group-item i {
+    width: 25px;
+    text-align: center;
+    font-size: 1.1rem;
+  }
+
+  /* ================================================================= */
+  /* 4. OVERRIDE KARTU (CARD) & WADAH UTAMA */
+  /* ================================================================= */
+  .card-form {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border) !important;
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-saas);
+    margin-bottom: 24px;
+    transition: all 0.2s ease-in-out;
+  }
+  .card-form:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover);
+  }
+  .card-header {
+    background-color: transparent !important;
+    border-bottom: 1px solid var(--card-border);
+    padding: 1.25rem 1.5rem;
+  }
+
+  /* ================================================================= */
+  /* 5. OVERRIDE INPUT FORM (MICRO-INTERACTIONS) */
+  /* ================================================================= */
+  .input-group-text {
+    background-color: var(--bg-main);
+    color: var(--text-muted);
+    border: 1px solid var(--card-border);
+    border-right: none;
+    border-top-left-radius: var(--radius-input);
+    border-bottom-left-radius: var(--radius-input);
+  }
+  .form-control,
+  .form-select {
+    background-color: var(--bg-main);
+    border: 1px solid var(--card-border);
+    border-left: none;
+    color: var(--text-dark);
+    font-weight: 500;
+    border-top-right-radius: var(--radius-input) !important;
+    border-bottom-right-radius: var(--radius-input) !important;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+  }
+  .form-control:focus,
+  .form-select:focus {
+    background-color: #ffffff;
+    border-color: var(--color-primary);
+    box-shadow: none;
+  }
+  .input-group:focus-within {
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+    border-radius: var(--radius-input);
+  }
+  .swal2-input,
+  .swal2-select {
+    border-radius: var(--radius-input) !important;
+    font-family: "Inter", sans-serif !important;
+  }
+
+  /* ================================================================= */
+  /* 6. OVERRIDE TOMBOL (BUTTONS) */
+  /* ================================================================= */
+  .btn {
+    border-radius: var(--radius-btn);
+    font-weight: 600;
+    padding: 0.6rem 1.2rem;
+    transition: all 0.2s ease;
+    border: none;
+  }
+  .btn:hover {
+    transform: translateY(-2px);
+  }
+  .btn-utama {
+    padding: 14px;
+    font-size: 1rem;
+    letter-spacing: 0.3px;
+  }
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+    box-shadow: var(--shadow-indigo);
+  }
+  .btn-primary:hover {
+    background-color: var(--color-primary-hover);
+    box-shadow: 0 6px 20px 0 rgba(79, 70, 229, 0.45);
+  }
+  .btn-success {
+    background-color: var(--color-success);
+    color: white;
+  }
+  .btn-warning {
+    background-color: var(--color-warning);
+    color: white;
+  }
+  .btn-danger {
+    background-color: var(--color-danger);
+    color: white;
+  }
+  .btn-dark {
+    background-color: var(--text-dark);
+    color: white;
+  }
+
+  /* ================================================================= */
+  /* 7. CUSTOM IKON & STATUS BADGE */
+  /* ================================================================= */
+  .icon-box {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-btn);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+  }
+  .icon-indigo {
+    background-color: #e0e7ff;
+    color: var(--color-primary);
+  }
+  .icon-emerald {
+    background-color: #d1fae5;
+    color: var(--color-success);
+  }
+  .icon-amber {
+    background-color: #fef3c7;
+    color: var(--color-warning);
+  }
+  .icon-rose {
+    background-color: #ffe4e6;
+    color: var(--color-danger);
+  }
+
+  .status-badge {
+    font-size: 0.9rem;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 700;
+    display: inline-block;
+  }
+  .bg-standby {
+    background-color: var(--bg-main);
+    color: var(--text-muted);
+    border: 1px solid var(--card-border);
+  }
+  .bg-dinas {
+    background-color: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+  }
+
+  .badge {
+    font-weight: 600;
+    padding: 0.5em 0.75em;
+    border-radius: 8px;
+  }
+  .bg-warning {
+    background-color: #fef3c7 !important;
+    color: #b45309 !important;
+  }
+  .bg-success {
+    background-color: #d1fae5 !important;
+    color: #047857 !important;
+  }
+  .bg-info {
+    background-color: #e0f2fe !important;
+    color: #0369a1 !important;
+  }
+
+  /* ================================================================= */
+  /* 8. TABEL & UTILITIES LAINNYA */
+  /* ================================================================= */
+  .table-responsive {
+    font-size: 0.85rem;
+    border-radius: var(--radius-btn);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--card-border);
+  }
+
+  th {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    color: var(--text-muted) !important;
+    background-color: var(--bg-main) !important;
+    border-bottom: 2px solid var(--card-border);
+  }
+  th,
+  td {
+    vertical-align: middle;
+    border-bottom: 1px solid var(--card-border);
+    color: var(--text-dark);
+    white-space: nowrap;
+    padding: 12px;
+  }
+
+  .box-kamera-kosong {
+    width: 100%;
+    min-height: 200px;
+    background: var(--bg-main);
+    border-radius: var(--radius-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed #cbd5e1;
+    flex-direction: column;
+    transition: all 0.3s;
+  }
+  .box-kamera-kosong:hover {
+    border-color: var(--color-primary);
+    background: #f1f5f9;
+  }
+
+  #pageDashboard,
+  #sectionScanner,
+  #sectionBeranda,
+  #sectionRiwayat,
+  #sectionPendapatan,
+  #sectionArsip,
+  #sectionAdmin,
+  #sectionKelolaKaryawan,
+  #sectionArsipAdmin {
+    display: none;
+  }
+
+  .global-watermark {
+    text-align: center;
+    padding: 15px 10px;
+    margin-top: 30px;
+    margin-bottom: 10px;
+    font-family: "Inter", sans-serif;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    width: 100%;
+  }
+  .global-watermark .version-text {
+    font-weight: 700;
+    color: var(--text-dark);
+  }
+  .global-watermark .heart-icon {
+    color: var(--color-danger);
+    margin: 0 3px;
+  }
+
+  /* ================================================================= */
+  /* 9. OPTIMASI MOBILE (RESPONSIVE DESIGN SAAS) */
+  /* ================================================================= */
+  @media (max-width: 768px) {
+    html {
+      font-size: 14px;
+    }
+    .card-form {
+      padding: 0.5rem !important;
+      margin-bottom: 16px;
+      border-radius: 1.2rem;
+    }
+    .card-body {
+      padding: 1rem !important;
+    }
+    .card-header {
+      padding: 1rem !important;
+    }
+    .p-5 {
+      padding: 1.5rem !important;
+    }
+    h4 {
+      font-size: 1.25rem !important;
+    }
+    h5 {
+      font-size: 1.1rem !important;
+    }
+    h6 {
+      font-size: 1rem !important;
+    }
+    th,
+    td {
+      padding: 0.6rem !important;
+      font-size: 0.8rem;
+    }
+    .offcanvas {
+      width: 85% !important;
+      max-width: 320px;
+    }
+    .btn-utama {
+      padding: 12px;
+      font-size: 0.95rem;
+    }
+  }
+</style>

@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>FSET - Dashboard Enterprise</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <?!= include('CSS'); ?>
+    <style>
+      body {
+        padding-top: 65px !important; /* Mengurangi jarak kosong dari Navbar */
+      }
+      #pageDashboard {
+        margin-top: 5px !important; /* Menarik konten dashboard sedikit lebih ke atas */
+      }
+
+      /* Opsional: Membuat tampilan Card Status lebih presisi di layar HP/Desktop */
+      #bannerStatusUser {
+        padding: 0.5rem !important;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-light navbar-app fixed-top">
+      <div class="container position-relative d-flex justify-content-between align-items-center">
+        <button class="btn btn-light border-0 position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" id="btnSidebar" style="display: none; border-radius: var(--radius-btn); z-index: 2">
+          <i class="fa-solid fa-bars fa-lg" style="color: var(--text-dark)"></i>
+        </button>
+        <span class="navbar-brand position-absolute start-50 translate-middle-x m-0" style="z-index: 1"> <i class="fa-solid fa-layer-group me-2" style="color: var(--color-primary)"></i>FSET System </span>
+        <div style="width: 40px; position: relative; z-index: 2" id="headerSpacer"></div>
+      </div>
+    </nav>
+
+    <div class="offcanvas offcanvas-start" tabindex="-1" id="sidebarMenu">
+      <div class="offcanvas-header-custom position-relative">
+        <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="offcanvas"></button>
+        <div class="icon-box icon-indigo mx-auto mb-3" style="width: 72px; height: 72px; font-size: 32px"><i class="fa-solid fa-user"></i></div>
+        <h5 class="mb-0" id="sideNama" style="color: var(--text-dark)">Nama User</h5>
+        <span class="small fw-bold" style="color: var(--color-primary)" id="sideNRPP">NRPP</span>
+      </div>
+      <div class="offcanvas-body p-0 mt-2">
+        <div class="list-group list-group-flush">
+          <span class="ms-4 mb-2 small fw-bold text-uppercase" style="color: var(--text-muted); letter-spacing: 1px">Karyawan</span>
+          <a href="#" class="list-group-item list-group-item-action" onclick="navigasi('beranda')"><i class="fa-solid fa-house me-2"></i> Beranda Utama</a>
+          <a href="#" class="list-group-item list-group-item-action" onclick="navigasi('riwayat')"><i class="fa-solid fa-clock-rotate-left me-2"></i> Riwayat Perjalanan</a>
+          <a href="#" class="list-group-item list-group-item-action" onclick="navigasi('pendapatan')"><i class="fa-solid fa-file-invoice-dollar me-2"></i> Pendapatan UPD</a>
+          <a href="#" class="list-group-item list-group-item-action" onclick="navigasi('arsip')"><i class="fa-solid fa-box-archive me-2"></i> Arsip Pendapatan</a>
+
+          <div id="menuAdminHRD" style="display: none">
+            <span class="ms-4 mt-4 mb-2 d-block small fw-bold text-uppercase" style="color: var(--text-muted); letter-spacing: 1px">Administrator HRD</span>
+            <a href="#" class="list-group-item list-group-item-action" onclick="navigasi('admin')"><i class="fa-solid fa-chart-pie me-2 text-danger"></i> Dashboard Pengawas</a>
+            <a href="#" class="list-group-item list-group-item-action" onclick="navigasi('karyawan')"><i class="fa-solid fa-users-gear me-2 text-primary"></i> Kelola Karyawan</a>
+            <a href="#" class="list-group-item list-group-item-action" onclick="navigasi('arsipAdmin')"><i class="fa-solid fa-folder-open me-2 text-warning"></i> Arsip Karyawan</a>
+          </div>
+
+          <div id="menuAdminGA" style="display: none">
+            <span class="ms-4 mt-4 mb-2 d-block small fw-bold text-uppercase" style="color: var(--text-muted); letter-spacing: 1px">Administrator GA</span>
+            <a href="#" class="list-group-item list-group-item-action" onclick="navigasi('adminGA')"><i class="fa-solid fa-car-on me-2 text-success"></i> Pantauan Izin Kendaraan</a>
+          </div>
+
+          <span class="ms-4 mt-4 mb-2 d-block small fw-bold text-uppercase" style="color: var(--text-muted); letter-spacing: 1px">Akun</span>
+          <a href="#" class="list-group-item list-group-item-action" onclick="bukaModalPassword()"><i class="fa-solid fa-shield-halved me-2"></i> Pengaturan Akun</a>
+          <a href="#" class="list-group-item list-group-item-action text-danger mt-1" onclick="logout()"><i class="fa-solid fa-power-off me-2"></i> Keluar (Logout)</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="row justify-content-center" id="pageLogin">
+        <div class="col-md-6 col-lg-5">
+          <div class="card card-form p-2 mt-2">
+            <div class="card-body p-4 text-center">
+              <div class="icon-box icon-indigo mx-auto mb-3"><i class="fa-solid fa-lock"></i></div>
+              <h4 class="mb-1 text-dark">Portal Karyawan</h4>
+              <p class="text-muted mb-4 small">Masuk untuk melanjutkan ke sistem FSET.</p>
+              <div class="input-group mb-3">
+                <span class="input-group-text"><i class="fa-solid fa-id-badge"></i></span><input type="number" id="loginNrpp" class="form-control form-control-lg" placeholder="NRPP" required />
+              </div>
+              <div class="input-group mb-4">
+                <span class="input-group-text"><i class="fa-solid fa-key"></i></span><input type="password" id="loginPass" class="form-control form-control-lg" placeholder="Password" required />
+              </div>
+              <button class="btn btn-primary btn-utama w-100" id="btnLogin" onclick="prosesLogin()">Masuk Aplikasi</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="pageDashboard">
+        <div class="card card-form mb-4 border-0" style="background-color: var(--card-bg)" id="bannerStatusUser">
+          <div class="card-body text-center py-4">
+            <span class="text-muted small fw-bold text-uppercase tracking-wider">Status Kehadiran</span>
+            <div class="mt-2 mb-2">
+              <div id="dashStatus" class="status-badge bg-standby"><i class="fa-solid fa-building"></i> Standby</div>
+            </div>
+            <h5 class="mb-0 fw-bold" id="dashJabatan" style="color: var(--color-primary)">Jabatan</h5>
+          </div>
+        </div>
+
+        <div id="sectionBeranda">
+          <div id="menuPilihanBeranda" class="row g-3 mb-4">
+            <div class="col-6">
+              <div class="card card-form text-center p-3 h-100 shadow-sm" style="cursor: pointer; border-bottom: 4px solid var(--color-primary) !important" onclick="bukaFormDinas()">
+                <div class="icon-box icon-indigo mx-auto mb-2"><i class="fa-solid fa-briefcase"></i></div>
+                <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.95rem">Perjalanan Dinas</h6>
+                <span class="text-muted" style="font-size: 0.75rem">Absen Pos Security</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="card card-form text-center p-3 h-100 shadow-sm" style="cursor: pointer; border-bottom: 4px solid var(--color-success) !important" onclick="bukaFormKendaraan()">
+                <div class="icon-box icon-emerald mx-auto mb-2"><i class="fa-solid fa-car-side"></i></div>
+                <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.95rem">Izin Kendaraan</h6>
+                <span class="text-muted" style="font-size: 0.75rem">Form GA (Opsional)</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="containerFormDinas" style="display: none">
+            <button class="btn btn-sm btn-light mb-3 text-muted fw-bold shadow-sm border" style="border-radius: var(--radius-btn)" onclick="kembaliKeMenuBeranda()"><i class="fa-solid fa-arrow-left me-1"></i> Kembali ke Menu</button>
+
+            <div class="card card-form" id="formKeluar" style="display: none">
+              <div class="card-body p-4">
+                <h5 class="mb-4 text-dark fw-bold"><i class="fa-solid fa-sign-out-alt text-primary me-2"></i> Form Izin Keluar</h5>
+                <div class="input-group mb-3">
+                  <span class="input-group-text"><i class="fa-solid fa-file-signature"></i></span>
+                  <input type="text" inputmode="numeric" id="inputST" class="form-control" placeholder="Nomor Surat Tugas" list="datalistST" oninput="autofillST()" required />
+                  <datalist id="datalistST"></datalist>
+                </div>
+                <div class="input-group mb-3">
+                  <span class="input-group-text"><i class="fa-solid fa-car"></i></span
+                  ><select id="selectKendaraan" class="form-select" required></select>
+                </div>
+                <div class="input-group mb-3">
+                  <span class="input-group-text"><i class="fa-solid fa-building"></i></span><input type="text" id="inputCustomer" class="form-control" placeholder="Nama Customer (PT. ABC)" required />
+                </div>
+                <div class="input-group mb-4">
+                  <span class="input-group-text"><i class="fa-solid fa-location-dot"></i></span><input type="text" id="inputLokasi" class="form-control" placeholder="Lokasi Tujuan" required />
+                </div>
+                <button class="btn btn-success btn-utama w-100 shadow-sm" onclick="cekLokasiGPS('KELUAR')"><i class="fa-solid fa-location-crosshairs"></i> Validasi GPS & Scan Barcode</button>
+              </div>
+            </div>
+
+            <div class="card card-form border-warning" id="formMasuk" style="display: none">
+              <div class="card-body p-4 text-center">
+                <div class="icon-box icon-amber mx-auto mb-3" style="width: 60px; height: 60px; font-size: 24px"><i class="fa-solid fa-briefcase"></i></div>
+                <h4 class="mb-2 text-dark fw-bold">Sedang Bertugas</h4>
+                <p class="text-muted mb-4 small">Pastikan pekerjaan telah selesai sepenuhnya sebelum Anda melaporkan kepulangan di Pos Security.</p>
+                <button class="btn btn-danger btn-utama w-100 shadow-sm" onclick="cekLokasiGPS('MASUK')"><i class="fa-solid fa-location-crosshairs"></i> Validasi Kepulangan & Scan</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 1. SUB-MENU IZIN KENDARAAN -->
+          <div id="containerMenuKendaraan" style="display: none">
+            <button class="btn btn-sm btn-light mb-4 text-muted fw-bold shadow-sm border" style="border-radius: var(--radius-btn)" onclick="kembaliKeMenuBeranda()"><i class="fa-solid fa-arrow-left me-1"></i> Kembali ke Menu Utama</button>
+
+            <h5 class="mb-3 text-dark fw-bold"><i class="fa-solid fa-car text-success me-2"></i> Menu Kendaraan Dinas</h5>
+            <div class="row g-3">
+              <div class="col-6">
+                <div class="card card-form text-center p-3 h-100 shadow-sm" style="cursor: pointer; border-bottom: 4px solid var(--color-success) !important" onclick="bukaFormInputGA()">
+                  <div class="icon-box icon-emerald mx-auto mb-2"><i class="fa-solid fa-pen-to-square"></i></div>
+                  <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.9rem">Form Izin</h6>
+                  <span class="text-muted" style="font-size: 0.7rem">Buat Pengajuan</span>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="card card-form text-center p-3 h-100 shadow-sm" style="cursor: pointer; border-bottom: 4px solid var(--color-warning) !important" onclick="bukaRiwayatGA()">
+                  <div class="icon-box icon-amber mx-auto mb-2"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                  <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.9rem">Riwayat</h6>
+                  <span class="text-muted" style="font-size: 0.7rem">Status & Biaya</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. WADAH KHUSUS FORM IZIN -->
+          <div id="formIzinKendaraan" class="card card-form" style="display: none">
+            <div class="card-body p-4">
+              <button class="btn btn-sm btn-light mb-4 text-muted fw-bold shadow-sm border" style="border-radius: var(--radius-btn)" onclick="kembaliKeMenuKendaraan()"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</button>
+              <h6 class="mb-3 text-dark fw-bold"><i class="fa-solid fa-file-lines text-success me-2"></i> Formulir Pengajuan</h6>
+
+              <div class="alert bg-light border py-2 small mb-4 text-muted" style="border-radius: var(--radius-input)"><i class="fa-solid fa-user-circle text-primary me-1"></i> Pemohon: <b id="lblPemohonNama" class="text-dark"></b></div>
+
+              <label class="form-label small fw-bold text-dark">Nomor Polisi Kendaraan <span class="text-danger">*</span></label>
+              <div class="input-group mb-2">
+                <span class="input-group-text"><i class="fa-solid fa-car-side"></i></span>
+                <select id="selectKendaraanGA" class="form-select" onchange="cekKendaraanLainnya()" required></select>
+              </div>
+              <input type="text" id="inputKendaraanLainnya" class="form-control mb-3" placeholder="Ketik Plat Nomor Manual..." style="display: none; border-color: var(--color-warning)" />
+
+              <label class="form-label small fw-bold text-dark mb-1">Partner Kerja <span class="text-muted fw-normal">(Opsional)</span></label>
+              <p class="text-muted mb-2" style="font-size: 0.75rem">Cari dan centang rekan yang ikut berangkat.</p>
+              <div class="input-group mb-2 shadow-sm" style="border-radius: var(--radius-input)">
+                <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-search text-muted"></i></span>
+                <input type="text" id="searchPartner" class="form-control border-start-0 ps-0" placeholder="Ketik nama mekanik..." onkeyup="filterPartner()" />
+              </div>
+              <div class="border p-2 mb-3 bg-white" style="border-radius: var(--radius-input); max-height: 160px; overflow-y: auto" id="containerCheckboxesPartner">
+                <div class="text-center py-3 small text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Memuat daftar...</div>
+              </div>
+
+              <label class="form-label small fw-bold text-dark">Nama Customer <span class="text-danger">*</span></label>
+              <div class="input-group mb-3">
+                <span class="input-group-text"><i class="fa-solid fa-building"></i></span>
+                <input type="text" id="inputGACustomer" class="form-control" placeholder="Contoh: TOYOTA ASTRA MOTOR (Tanpa PT)" required />
+              </div>
+
+              <label class="form-label small fw-bold text-dark">Alamat Customer <span class="text-danger">*</span></label>
+              <textarea id="inputGAAlamat" class="form-control mb-3" rows="2" placeholder="Alamat lengkap atau kawasan industri..." required></textarea>
+
+              <label class="form-label small fw-bold text-dark">Departemen Pemohon <span class="text-danger">*</span></label>
+              <div class="input-group mb-3">
+                <span class="input-group-text"><i class="fa-solid fa-sitemap"></i></span>
+                <input type="text" id="inputGADepartemen" class="form-control" placeholder="Contoh: Engineering / Maintenance" required />
+              </div>
+
+              <div class="row mb-4">
+                <div class="col-6">
+                  <label class="form-label small fw-bold text-dark">KM Awal <span class="text-danger">*</span></label>
+                  <input type="number" id="inputGAKm" class="form-control" placeholder="Misal: 45000" required />
+                </div>
+                <div class="col-6">
+                  <label class="form-label small fw-bold text-dark">Kartu Fleet <span class="text-danger">*</span></label>
+                  <input type="text" id="inputGAFleet" class="form-control" placeholder="Ketik No. Fleet..." list="datalistFleet" autocomplete="off" required />
+                  <datalist id="datalistFleet"></datalist>
+                </div>
+              </div>
+
+              <button class="btn btn-success btn-utama w-100 shadow-sm" id="btnSubmitGA" onclick="submitIzinKendaraan()"><i class="fa-solid fa-paper-plane me-2"></i> Ajukan Izin ke GA</button>
+            </div>
+          </div>
+
+          <!-- 3. WADAH KHUSUS TABEL RIWAYAT -->
+          <div id="riwayatIzinKendaraan" class="card card-form" style="display: none">
+            <div class="card-body p-3">
+              <button class="btn btn-sm btn-light mb-3 text-muted fw-bold shadow-sm border" style="border-radius: var(--radius-btn)" onclick="kembaliKeMenuKendaraan()"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</button>
+              <h6 class="mb-3 text-dark fw-bold"><i class="fa-solid fa-clock-rotate-left text-warning me-2"></i> Riwayat & Biaya Pengajuan</h6>
+
+              <div class="table-responsive shadow-sm" style="border-radius: var(--radius-input); border: 1px solid var(--card-border)">
+                <table class="table table-hover align-middle text-center mb-0" style="font-size: 0.8rem">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Waktu</th>
+                      <th>Kendaraan & KM</th>
+                      <th>Partner</th>
+                      <th>Tujuan & Alamat</th>
+                      <th>Dept</th>
+                      <th>Status</th>
+                      <th>Aksi / Biaya</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tableRiwayatKendaraanUser">
+                    <tr>
+                      <td colspan="7" class="text-center py-4 text-muted">Memuat riwayat...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="sectionRiwayat">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0 text-dark fw-bold">Riwayat Perjalanan</h4>
+            <button class="btn btn-sm btn-dark fw-bold" onclick="modalPilihanCetakLogUser()"><i class="fa-solid fa-print"></i> Cetak Log</button>
+          </div>
+          <div class="card card-form p-2">
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle text-center mb-0">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Validasi</th>
+                      <th>No. ST</th>
+                      <th>Keluar</th>
+                      <th>Masuk</th>
+                      <th>Customer</th>
+                      <th>Durasi</th>
+                      <th>Total UPD</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tableRiwayatBody">
+                    <tr>
+                      <td colspan="8" class="text-center py-4">Memuat data...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="sectionPendapatan">
+          <h4 class="mb-3 text-dark fw-bold">Breakdown Pendapatan</h4>
+          <div class="card card-form p-2">
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle text-center mb-0">
+                  <thead>
+                    <tr>
+                      <th rowspan="2" class="align-middle border-end">NO. ST</th>
+                      <th colspan="4" class="border-end">Rincian Komponen</th>
+                      <th rowspan="2" class="align-middle bg-light text-dark fw-bold">TOTAL</th>
+                    </tr>
+                    <tr>
+                      <th>UPD / TLM</th>
+                      <th>Uang Makan</th>
+                      <th>Makan Siang</th>
+                      <th class="border-end">Lain-Lain</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tablePendapatanBody">
+                    <tr>
+                      <td colspan="6" class="text-center py-4">Memuat data...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="sectionArsip" style="display: none">
+          <h4 class="mb-3 text-dark fw-bold">Arsip Karyawan</h4>
+          <div id="containerArsip">
+            <div class="text-center py-5"><i class="fa-solid fa-spinner fa-spin fa-2x text-muted mb-3"></i><br /><span class="text-muted fw-bold">Memuat brankas arsip...</span></div>
+          </div>
+        </div>
+
+        <div id="sectionAdmin" style="display: none">
+          <div class="mb-4">
+            <h4 class="text-dark fw-bold mb-1">Dashboard HRD</h4>
+            <p class="text-muted small">Pantau status perjalanan dinas dan pengeluaran UPD secara real-time.</p>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-6">
+              <div class="card card-form border-0 shadow-saas h-100 mb-0">
+                <div class="card-body p-3 d-flex flex-column justify-content-center">
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="icon-box icon-amber me-2" style="width: 36px; height: 36px; font-size: 1rem"><i class="fa-solid fa-truck-fast"></i></div>
+                    <span class="text-muted small fw-bold">Dinas Luar</span>
+                  </div>
+                  <h3 class="mb-0 fw-bold text-dark" id="admTotalOut">0 <span class="fs-6 text-muted fw-normal">Personil</span></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="card card-form border-0 shadow-saas h-100 mb-0">
+                <div class="card-body p-3 d-flex flex-column justify-content-center">
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="icon-box icon-emerald me-2" style="width: 36px; height: 36px; font-size: 1rem"><i class="fa-solid fa-money-bill-wave"></i></div>
+                    <span class="text-muted small fw-bold">UPD Bulan Ini</span>
+                  </div>
+                  <h4 class="mb-0 fw-bold text-dark" id="admTotalUPD" style="letter-spacing: -0.5px">Rp 0</h4>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-form mb-4 p-2">
+            <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
+              <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-money-check-dollar text-success me-2"></i> Master Tarif UPD</h6>
+              <button class="btn btn-sm btn-success fw-bold" onclick="bukaModalTambahTarif()"><i class="fa-solid fa-plus me-1"></i> Tambah</button>
+            </div>
+            <div class="card-body p-0 mt-3">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                  <thead>
+                    <tr>
+                      <th>JABATAN</th>
+                      <th>UPD (≥8 Jam)</th>
+                      <th>UPD (<8 Jam)</th>
+                      <th>Makan</th>
+                      <th>Lain2 (Kerja)</th>
+                      <th>Lain2 (Libur)</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tableAdminTarif">
+                    <tr>
+                      <td colspan="7" class="text-center py-4">Memuat data tarif...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-form mb-4 p-2">
+            <div class="card-header border-0 pb-0">
+              <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-users-viewfinder text-primary me-2"></i> Rekap & Log Karyawan</h6>
+            </div>
+            <div class="card-body p-3">
+              <div class="input-group mb-4 shadow-sm" style="border-radius: var(--radius-input)">
+                <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-search text-muted"></i></span>
+                <select id="adminSelectKaryawan" class="form-select border-start-0 ps-0"></select>
+                <button class="btn btn-primary fw-bold px-4" onclick="lihatRekapKaryawanAdmin()">Cari</button>
+              </div>
+              <div id="adminRekapKaryawanContainer">
+                <div class="text-center py-4 text-muted bg-light" style="border-radius: var(--radius-card); border: 1px dashed var(--card-border)">
+                  <i class="fa-solid fa-hand-pointer fa-2x mb-2 text-primary opacity-50"></i><br /><span class="fw-bold">Pilih Karyawan</span><br /><small>Untuk melihat riwayat & persetujuan.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-form mb-5 p-2 border-danger" style="border-color: #fecdd3 !important">
+            <div class="card-header border-0 pb-0">
+              <h6 class="mb-0 fw-bold text-danger"><i class="fa-solid fa-map-location-dot me-2"></i> Personil Sedang Dinas</h6>
+            </div>
+            <div class="card-body p-0 mt-3">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                  <thead style="background-color: #fff1f2">
+                    <tr>
+                      <th>NAMA PERSONIL</th>
+                      <th>NO. ST</th>
+                      <th>LOKASI & CUSTOMER</th>
+                      <th>WAKTU KELUAR</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tableAdminOut">
+                    <tr>
+                      <td colspan="4" class="text-center py-4">Memuat pantauan...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="sectionKelolaKaryawan" style="display: none">
+          <h4 class="mb-4 text-dark fw-bold">Manajemen Karyawan</h4>
+          <div class="card card-form p-2">
+            <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
+              <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-address-card text-primary me-2"></i> Data Master</h6>
+              <button class="btn btn-sm btn-primary fw-bold" onclick="bukaModalTambahKaryawan()"><i class="fa-solid fa-user-plus me-1"></i> Tambah</button>
+            </div>
+            <div class="card-body p-0 mt-3">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                  <thead>
+                    <tr>
+                      <th>NRPP</th>
+                      <th>NAMA KARYAWAN</th>
+                      <th>JABATAN</th>
+                      <th>PASSWORD</th>
+                      <th>AKSI</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tableAdminKaryawan">
+                    <tr>
+                      <td colspan="5" class="text-center py-4">Memuat data...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="sectionArsipAdmin" style="display: none">
+          <h4 class="mb-4 text-dark fw-bold">Penarikan Arsip Karyawan</h4>
+          <div class="card card-form p-2">
+            <div class="card-body p-3">
+              <div class="input-group mb-4 shadow-sm" style="border-radius: var(--radius-input)">
+                <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-search text-muted"></i></span>
+                <select id="adminSelectKaryawanArsip" class="form-select border-start-0 ps-0"></select>
+                <button class="btn btn-dark fw-bold px-4" onclick="lihatArsipKaryawanAdmin()">Buka Brankas</button>
+              </div>
+              <div id="adminRekapArsipContainer">
+                <div class="text-center py-5 text-muted bg-light" style="border-radius: var(--radius-card); border: 1px dashed var(--card-border)">
+                  <i class="fa-solid fa-folder-open fa-2x mb-2 text-dark opacity-50"></i><br /><span class="fw-bold">Pilih Karyawan</span><br /><small>Untuk menarik arsip bulan-bulan sebelumnya.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="sectionAdminGA" style="display: none">
+          <div class="mb-4 BannerStatusUser">
+            <h4 class="text-dark fw-bold mb-1">Dashboard GA</h4>
+            <p class="text-muted small">Pilih menu untuk memantau kendaraan.</p>
+          </div>
+
+          <div id="gaMainMenu" class="row g-3 mb-5">
+            <div class="col-6">
+              <div class="card card-form text-center p-3 h-100 shadow-sm" style="cursor: pointer; border-bottom: 4px solid var(--color-primary) !important" onclick="bukaGAAplikasi()">
+                <div class="icon-box icon-indigo mx-auto mb-2"><i class="fa-solid fa-file-signature"></i></div>
+                <h6 class="fw-bold mb-1 text-dark">Persetujuan</h6>
+                <span class="text-muted small">Daftar Pengajuan</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="card card-form text-center p-3 h-100 shadow-sm" style="cursor: pointer; border-bottom: 4px solid var(--color-success) !important" onclick="bukaGAAnalitik()">
+                <div class="icon-box icon-emerald mx-auto mb-2"><i class="fa-solid fa-chart-pie"></i></div>
+                <h6 class="fw-bold mb-1 text-dark">Analytics</h6>
+                <span class="text-muted small">Breakdown Biaya</span>
+              </div>
+            </div>
+            <div class="col-6 offset-3 mt-3">
+              <div class="card card-form text-center p-3 h-100 shadow-sm" style="cursor: pointer; border-bottom: 4px solid var(--color-warning) !important" onclick="bukaGAArsip()">
+                <div class="icon-box icon-amber mx-auto mb-2"><i class="fa-solid fa-box-archive"></i></div>
+                <h6 class="fw-bold mb-1 text-dark">Arsip</h6>
+                <span class="text-muted small">Brankas Data</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="gaSubApplications" style="display: none">
+            <button class="btn btn-sm btn-light mb-4 text-muted fw-bold shadow-sm border" style="border-radius: var(--radius-btn)" onclick="kembaliKeMenuGA()"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</button>
+            <div class="card card-form p-2 mb-4">
+              <div class="card-header border-0 pb-0">
+                <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-list-check text-indigo me-2"></i> Daftar Pengajuan Izin Aktif</h6>
+              </div>
+              <div class="card-body p-0 mt-3">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle text-center mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Plat & Waktu</th>
+                        <th>Pemohon</th>
+                        <th>Partner</th>
+                        <th>Tujuan</th>
+                        <th>Keterangan</th>
+                        <th>Keuangan Fleet</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tableAdminGA">
+                      <tr>
+                        <td colspan="8" class="text-center py-4">Memuat data...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="gaSubAnalytics" style="display: none">
+            <button class="btn btn-sm btn-light mb-4 text-muted fw-bold shadow-sm border" style="border-radius: var(--radius-btn)" onclick="kembaliKeMenuGA()"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</button>
+
+            <div class="row g-3 mb-4 BannerStatusUser p-3" style="border-radius: var(--radius-card)">
+              <div class="col-12 text-center mb-2">
+                <span class="text-muted small fw-bold text-uppercase">Pengeluaran Bulan Berjalan</span>
+                <h2 class="fw-bold text-dark mt-1 mb-0" id="gaTotalBulanIni">Rp 0</h2>
+              </div>
+
+              <div class="col-4 text-center border-end"><span class="small text-muted">BBM</span><br /><strong class="text-dark" id="gaBreakdownBBM">Rp 0</strong></div>
+              <div class="col-4 text-center border-end"><span class="small text-muted">TOL</span><br /><strong class="text-dark" id="gaBreakdownTol">Rp 0</strong></div>
+              <div class="col-4 text-center"><span class="small text-muted">Parkir/Lain</span><br /><strong class="text-dark" id="gaBreakdownParkir">Rp 0</strong></div>
+            </div>
+
+            <div class="card card-form mb-4 p-2">
+              <div class="card-header border-0 pb-0 d-flex justify-content-between">
+                <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-gas-pump text-success me-2"></i> Analytics Per Kartu Fleet (Bulan Berjalan)</h6>
+              </div>
+              <div class="card-body p-3">
+                <div class="input-group mb-3 shadow-sm">
+                  <span class="input-group-text bg-light text-muted border-secondary"><i class="fa-solid fa-credit-card"></i></span>
+                  <select id="gaSelectFleet" class="form-select border-secondary" onchange="renderFleetDetail()">
+                    <option value="" selected disabled>Pilih Nomor Kartu Fleet...</option>
+                  </select>
+                </div>
+                <div id="gaFleetDetailContainer" class="p-3 bg-light border shadow-sm" style="border-radius: var(--radius-input); display: none">
+                  <div class="row text-center g-3">
+                    <div class="col-12">
+                      <span class="small text-muted fw-bold">Total Pengeluaran Kartu</span><br />
+                      <h4 class="text-primary fw-bold mt-1 mb-0" id="lblFleetTotal">Rp 0</h4>
+                    </div>
+                    <div class="col-6 border-end border-top pt-2"><span class="small text-muted">BBM</span><br /><strong class="text-dark" id="lblFleetBBM">Rp 0</strong></div>
+                    <div class="col-6 border-top pt-2"><span class="small text-muted">TOL</span><br /><strong class="text-dark" id="lblFleetTol">Rp 0</strong></div>
+                    <div class="col-6 border-end border-top pt-2"><span class="small text-muted">Parkir</span><br /><strong class="text-dark" id="lblFleetParkir">Rp 0</strong></div>
+                    <div class="col-6 border-top pt-2"><span class="small text-muted">Lain-Lain</span><br /><strong class="text-dark" id="lblFleetLain">Rp 0</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="gaSubArchive" style="display: none">
+            <button class="btn btn-sm btn-light mb-4 text-muted fw-bold shadow-sm border" style="border-radius: var(--radius-btn)" onclick="kembaliKeMenuGA()"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</button>
+            <div class="card card-form p-2 mb-5 border-warning" style="border-color: #fde68a !important">
+              <div class="card-header border-0 pb-0">
+                <h6 class="mb-0 fw-bold text-warning"><i class="fa-solid fa-box-archive me-2"></i> Brankas Arsip Kendaraan</h6>
+              </div>
+              <div class="card-body p-3">
+                <div class="input-group mb-3 shadow-sm" style="border-radius: var(--radius-input)">
+                  <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-folder-open text-muted"></i></span>
+                  <select id="gaSelectArsip" class="form-select border-start-0 ps-0"></select>
+                  <button class="btn btn-dark fw-bold px-4" onclick="lihatArsipGA()">Buka Arsip</button>
+                </div>
+
+                <div id="filterArsipContainer" class="row g-2 mb-3" style="display: none">
+                  <div class="col-6">
+                    <select id="filterArsipBulan" class="form-select form-select-sm border-secondary shadow-sm" onchange="terapkanFilterArsip()">
+                      <option value="ALL">Semua Bulan</option>
+                      <option value="01">Januari</option>
+                      <option value="02">Februari</option>
+                      <option value="03">Maret</option>
+                      <option value="04">April</option>
+                      <option value="05">Mei</option>
+                      <option value="06">Juni</option>
+                      <option value="07">Juli</option>
+                      <option value="08">Agustus</option>
+                      <option value="09">September</option>
+                      <option value="10">Oktober</option>
+                      <option value="11">November</option>
+                      <option value="12">Desember</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <select id="filterArsipFleet" class="form-select form-select-sm border-secondary shadow-sm" onchange="terapkanFilterArsip()">
+                      <option value="ALL">Semua Fleet</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="table-responsive shadow-sm" style="border-radius: var(--radius-input); border: 1px solid var(--card-border)">
+                  <table class="table table-hover align-middle text-center mb-0" style="font-size: 0.8rem">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Waktu</th>
+                        <th>Pemohon</th>
+                        <th>Plat & Fleet</th>
+                        <th>Customer</th>
+                        <th>Total Biaya</th>
+                        <th>Top Up</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tableArsipGA">
+                      <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">Pilih brankas arsip di atas.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-form mt-4" id="sectionScanner">
+        <div class="card-body p-5 text-center">
+          <div class="icon-box icon-emerald mx-auto mb-3" style="width: 60px; height: 60px; font-size: 24px"><i class="fa-solid fa-circle-check"></i></div>
+          <h4 class="mb-2 text-dark fw-bold">GPS Tervalidasi</h4>
+          <p class="text-muted small mb-4">Pilih foto Barcode dari galeri, atau langsung memotret menggunakan kamera HP Anda.</p>
+          <div class="box-kamera-kosong mb-4" id="reader">
+            <i class="fa-solid fa-camera fa-3x text-primary opacity-50 mb-2"></i>
+            <span class="text-dark fw-bold">Area Pemindai Barcode</span>
+          </div>
+          <label for="fileScan" class="btn btn-primary btn-utama w-100 mb-3 shadow-sm" style="cursor: pointer"><i class="fa-solid fa-folder-open me-2"></i> PILIH FOTO / KAMERA</label>
+          <input type="file" id="fileScan" accept="image/*" style="display: none" onchange="prosesFotoBarcode(event)" />
+          <button class="btn btn-light text-danger fw-bold w-100 mt-2" onclick="batalScan()">Batal & Kembali</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="global-watermark">
+      <div><span class="version-text">FSET Versi 2.1.117</span></div>
+      <div class="mt-1">dibuat dengan <i class="fa-solid fa-heart heart-icon"></i> Exprosa Lab 2026</div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <?!= include('JS'); ?> <?!= include('JS_GA'); ?>
+  </body>
+</html>
