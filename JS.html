@@ -1068,4 +1068,137 @@
       })
       .prosesDataScan(currentUser);
   }
+
+  // ===================================================================================
+  // FUNGSI BARU: DASHBOARD HRD & RADAR BACKGROUND POLLING
+  // ===================================================================================
+
+  let globalTotalLogServer = 0;
+  let intervalRadarHRD = null;
+
+  function loadAdminDashboard() {
+    document.getElementById("tableAdminOut").innerHTML = '<tr><td colspan="4" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary"></i><br>Memuat Pantauan...</td></tr>';
+
+    // Pastikan UI tetap model Sub-Menu Cards (Disembunyikan yang tidak perlu)
+    document.getElementById("adminRekapKaryawanContainer").style.display = "block";
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        // 1. Update Sub-Menu Cards (Metrik Atas)
+        document.getElementById("admTotalOut").innerHTML = `${res.totalOut} <span class="fs-6 text-muted fw-normal">Personil</span>`;
+        document.getElementById("admTotalUPD").innerText = "Rp " + (res.totalUPDBulanIni || 0).toLocaleString("id-ID");
+
+        // 2. Render Tabel dengan DOM Murni
+        renderTabelAdminOut(res.aktifOut);
+
+        // 3. Tarik angka total baris dari server (estimasi kasar untuk patokan awal radar)
+        // Kita set 0 dulu agar radar pertama kali akan langsung sinkronisasi
+        globalTotalLogServer = 0;
+
+        // 4. Nyalakan Background Short Polling
+        nyalakanRadarNotifikasiHRD();
+
+        // 5. Load Data Master Tarif (Fungsi yang sudah ada sebelumnya)
+        loadAdminTarif();
+      })
+      .getAdminDashboardData();
+  }
+
+  function nyalakanRadarNotifikasiHRD() {
+    // Bersihkan interval lama agar tidak dobel
+    if (intervalRadarHRD) clearInterval(intervalRadarHRD);
+
+    // Gunakan metode Background Short Polling dengan setInterval 10 detik
+    intervalRadarHRD = setInterval(() => {
+      google.script.run
+        .withSuccessHandler((res) => {
+          // Sinkronisasi data awal jika globalTotalLogServer masih 0
+          if (globalTotalLogServer === 0) {
+            globalTotalLogServer = res.totalBaru;
+            return;
+          }
+
+          if (res && res.hasNew) {
+            globalTotalLogServer = res.totalBaru; // Update patokan baru
+
+            // 1. Bunyikan efek suara
+            let audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+            audio.play().catch((e) => console.log("Auto-play suara ditahan browser"));
+
+            // 2. Munculkan Toast Notifikasi
+            Swal.fire({
+              toast: true,
+              position: "top-end",
+              icon: "info",
+              title: "Ada Absen Pos / Perjalanan Baru!",
+              showConfirmButton: false,
+              timer: 4000,
+            });
+
+            // 3. Render ulang metrik & tabel secara halus di background
+            refreshDashboardHRDBackground();
+          }
+        })
+        .cekNotifikasiAbsenBaruHRD(globalTotalLogServer);
+    }, 10000);
+  }
+
+  function refreshDashboardHRDBackground() {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        // Update Metrik Cards
+        document.getElementById("admTotalOut").innerHTML = `${res.totalOut} <span class="fs-6 text-muted fw-normal">Personil</span>`;
+        document.getElementById("admTotalUPD").innerText = "Rp " + (res.totalUPDBulanIni || 0).toLocaleString("id-ID");
+
+        // Render tabel menggunakan DOM Murni
+        renderTabelAdminOut(res.aktifOut);
+      })
+      .getAdminDashboardData();
+  }
+
+  // Gunakan DOM Murni (document.createElement) agar tidak kena bug browser
+  function renderTabelAdminOut(dataAktif) {
+    const tbody = document.getElementById("tableAdminOut");
+    tbody.innerHTML = ""; // Kosongkan tabel aman
+
+    if (!dataAktif || dataAktif.length === 0) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 4;
+      td.className = "text-center py-4 text-muted";
+      td.textContent = "Semua personil sedang Standby di kantor.";
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    dataAktif.forEach((item) => {
+      const tr = document.createElement("tr");
+
+      const tdNama = document.createElement("td");
+      tdNama.innerHTML = `<strong class="text-primary">${item.nama}</strong><br><small class="text-muted">NRPP: ${item.nrpp}</small>`;
+      tr.appendChild(tdNama);
+
+      const tdST = document.createElement("td");
+      tdST.innerHTML = `<span class="badge bg-light text-dark border shadow-sm">${item.st}</span>`;
+      tr.appendChild(tdST);
+
+      const tdLokasi = document.createElement("td");
+      tdLokasi.className = "text-start";
+      tdLokasi.innerHTML = `<strong>${item.customer}</strong><br><small class="text-truncate d-inline-block" style="max-width: 150px;" title="${item.lokasi}">${item.lokasi}</small>`;
+      tr.appendChild(tdLokasi);
+
+      const tdWaktu = document.createElement("td");
+      tdWaktu.innerHTML = `<span class="text-danger fw-bold"><i class="fa-solid fa-clock"></i> ${item.waktu_keluar.split(" ")[1]}</span><br><small class="text-muted">${item.waktu_keluar.split(" ")[0]}</small>`;
+      tr.appendChild(tdWaktu);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Dummy penopang loadAdminTarif karena dipanggil di fungsi atas
+  function loadAdminTarif() {
+    // (Opsional, pastikan fungsi ini sudah ada di skrip Anda untuk memuat tabel tarif UPD HRD)
+    // Jika sudah ada, biarkan saja.
+  }
 </script>

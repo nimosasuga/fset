@@ -305,3 +305,26 @@ function getArsipKaryawanLengkap(nrpp) {
     arsipLog: getRiwayatArsipGrouped(nrpp),
   };
 }
+
+// ===================================================================================
+// FUNGSI BARU: RADAR NOTIFIKASI REAL-TIME ABSEN POS (HRD)
+// ===================================================================================
+
+function cekNotifikasiAbsenBaruHRD(jumlahDataLokal) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Log_Perjalanan");
+    if (!sheet) return { hasNew: false, totalBaru: jumlahDataLokal };
+
+    // Hitung total baris saat ini (dikurangi 1 baris header)
+    const totalDataServer = sheet.getLastRow() - 1;
+
+    // Jika data di server (Sheets) lebih banyak dari data di layar HRD, ada absen baru!
+    if (totalDataServer > jumlahDataLokal) {
+      return { hasNew: true, totalBaru: totalDataServer };
+    }
+
+    return { hasNew: false, totalBaru: totalDataServer };
+  } catch (e) {
+    return { hasNew: false, totalBaru: jumlahDataLokal };
+  }
+}
