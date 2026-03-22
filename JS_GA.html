@@ -3,74 +3,74 @@
   let globalAnalyticsFleet = {};
   let globalDataArsipGA = [];
 
-  // Variabel Baru untuk Radar Real-Time
-  let globalTotalIzinServer = 0;
+  // PERBAIKAN: Variabel State Signature untuk Radar GA
+  let globalStateRadarGA = "";
   let intervalRadarGA = null;
 
   function loadAdminGADashboard() {
     kembaliKeMenuGA();
-
     document.getElementById("tableAdminGA").innerHTML = '<tr><td colspan="8" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary"></i><br>Memuat Data...</td></tr>';
 
     google.script.run
       .withSuccessHandler(function (res) {
         globalDataIzinGA = res;
-        globalTotalIzinServer = res.length; // Simpan jumlah data awal ke memori
-        renderTabelIzinGA(res);
 
-        // Nyalakan Radar Real-Time setelah data pertama berhasil dimuat
+        // Panggil fungsi pembuat opsi dropdown & terapkan filter
+        updateDropdownFilterAktif(res);
+        terapkanFilterAktifGA();
+
+        globalStateRadarGA = "";
         nyalakanRadarNotifikasiGA();
       })
       .getIzinKendaraanData();
   }
 
-  // --- FUNGSI BARU: RADAR REAL-TIME & AUTO REFRESH ---
   function nyalakanRadarNotifikasiGA() {
-    // Matikan radar lama jika ada, agar tidak dobel
     if (intervalRadarGA) clearInterval(intervalRadarGA);
 
-    // Radar akan mengecek ke server setiap 10 detik (10.000 milidetik)
     intervalRadarGA = setInterval(() => {
+      cekAnomaliBackground();
+
       google.script.run
         .withSuccessHandler((res) => {
-          if (res && res.hasNew) {
-            globalTotalIzinServer = res.totalBaru; // Update angka target
+          if (globalStateRadarGA === "") {
+            globalStateRadarGA = res.newState;
+            return;
+          }
 
-            // 1. Mainkan Suara Notifikasi (Efek Ting!)
-            let audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
-            audio.play().catch((e) => console.log("Auto-play suara ditahan browser"));
+          if (res && res.hasChanged) {
+            let isNewData = false;
+            let prevRows = parseInt(globalStateRadarGA.split("_")[0]) || 0;
+            if (res.totalBaris > prevRows) {
+              isNewData = true;
+            }
 
-            // 2. Munculkan Pop-up Melayang (Toast)
-            Swal.fire({
-              toast: true,
-              position: "top-end",
-              icon: "info",
-              title: "Ada Pengajuan Izin Baru Masuk!",
-              showConfirmButton: false,
-              timer: 4000,
-            });
+            globalStateRadarGA = res.newState;
+            globalDataIzinGA = res.data;
 
-            // 3. Tarik ulang data tabel SECARA DIAM-DIAM (Tanpa merusak layar)
-            refreshTabelGABackground();
+            if (isNewData) {
+              let audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+              audio.play().catch((e) => console.log("Auto-play ditahan browser"));
+
+              Swal.fire({
+                toast: true,
+                position: "top-end",
+                icon: "info",
+                title: "Ada Pengajuan Izin Baru Masuk!",
+                showConfirmButton: false,
+                timer: 4000,
+              });
+            }
+
+            // PERBAIKAN: Terapkan Filter otomatis saat ada data baru dari radar
+            if (document.getElementById("gaSubApplications").style.display === "block") {
+              updateDropdownFilterAktif(res.data);
+              terapkanFilterAktifGA();
+            }
           }
         })
-        .cekNotifikasiIzinBaruGA(globalTotalIzinServer);
+        .cekNotifikasiIzinBaruGA(globalStateRadarGA);
     }, 10000);
-  }
-
-  // Tarik data baru tanpa memunculkan tulisan "Memuat..." yang mengganggu
-  function refreshTabelGABackground() {
-    google.script.run
-      .withSuccessHandler(function (res) {
-        globalDataIzinGA = res;
-        globalTotalIzinServer = res.length;
-
-        // Jika GA sedang membuka menu "Persetujuan", langsung render tabelnya
-        if (document.getElementById("gaSubApplications").style.display === "block") {
-          renderTabelIzinGA(res);
-        }
-      })
-      .getIzinKendaraanData();
   }
 
   // --- FUNGSI NAVIGASI INTERAKTIF GA (ANTI SCROLL) ---
@@ -79,6 +79,10 @@
     document.getElementById("gaSubApplications").style.display = "none";
     document.getElementById("gaSubAnalytics").style.display = "none";
     document.getElementById("gaSubArchive").style.display = "none";
+
+    // Sembunyikan juga halaman anomali jika ada
+    let anomaliContainer = document.getElementById("gaSubAnomali");
+    if (anomaliContainer) anomaliContainer.style.display = "none";
   }
 
   function bukaGAAplikasi() {
@@ -331,6 +335,7 @@
     });
   }
 
+  // FUNGSI UPDATE: Modal Edit GA (Sudah menampilkan Nilai BBM, Tol, dan KM Akhir)
   function bukaModalEditIzinGA(idIzin) {
     const data = globalDataIzinGA.find((item) => item.id === idIzin);
     if (!data) return;
@@ -339,16 +344,35 @@
       title: "Koreksi Data Izin",
       html: `
         <div class="text-start mt-2" style="max-height: 65vh; overflow-y: auto; padding-right: 5px;">
-          <div class="alert bg-light border py-2 small mb-3 text-muted"><i class="fa-solid fa-circle-info text-primary me-1"></i> GA dapat mengkoreksi rincian perjalanan & biaya.</div>
-          <div class="row"><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Plat</label><input type="text" id="edit-ga-plat" class="form-control form-control-sm mb-2" value="${data.plat}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Dept</label><input type="text" id="edit-ga-dept" class="form-control form-control-sm mb-2" value="${data.departemen}"></div></div>
+          <div class="alert bg-light border py-2 small mb-3 text-muted"><i class="fa-solid fa-circle-info text-primary me-1"></i> GA dapat mengkoreksi rincian perjalanan, KM, & biaya.</div>
+          
+          <div class="row">
+            <div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Plat</label><input type="text" id="edit-ga-plat" class="form-control form-control-sm mb-2" value="${data.plat}"></div>
+            <div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Dept</label><input type="text" id="edit-ga-dept" class="form-control form-control-sm mb-2" value="${data.departemen}"></div>
+          </div>
+          
           <label class="form-label small fw-bold mb-1 text-dark">Partner</label><input type="text" id="edit-ga-partner" class="form-control form-control-sm mb-2" value="${data.partner}">
           <label class="form-label small fw-bold mb-1 text-dark">Customer</label><input type="text" id="edit-ga-cust" class="form-control form-control-sm mb-2" value="${data.customer}">
           <label class="form-label small fw-bold mb-1 text-dark">Alamat</label><textarea id="edit-ga-alamat" class="form-control form-control-sm mb-3" rows="2">${data.alamat}</textarea>
-          <div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">KM Awal</label><input type="number" id="edit-ga-km" class="form-control form-control-sm" value="${data.km}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Kartu Fleet</label><input type="text" id="edit-ga-fleet" class="form-control form-control-sm" value="${data.fleet}"></div></div>
-          <h6 class="fw-bold text-primary border-bottom pb-1 mb-2 mt-3">Keuangan Fleet</h6>
+          
+          <h6 class="fw-bold text-dark border-bottom pb-1 mb-2 mt-2">Data Kendaraan (Odometer)</h6>
+          <div class="row mb-3">
+            <div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">KM Awal</label><input type="number" id="edit-ga-km" class="form-control form-control-sm" value="${data.km}"></div>
+            <div class="col-6"><label class="form-label small fw-bold mb-1 text-primary">KM Akhir</label><input type="number" id="edit-ga-km-akhir" class="form-control form-control-sm border-primary" style="background-color: #f8fafc;" value="${data.kmAkhir || ""}"></div>
+          </div>
+          
+          <label class="form-label small fw-bold mb-1 text-dark">Kartu Fleet</label><input type="text" id="edit-ga-fleet" class="form-control form-control-sm mb-3" value="${data.fleet}">
+          
+          <h6 class="fw-bold text-primary border-bottom pb-1 mb-2">Keuangan Fleet</h6>
           <label class="form-label small fw-bold mb-1 text-dark">Top Up Fleet (Rp)</label><input type="number" id="edit-ga-topup" class="form-control form-control-sm mb-3 border-primary" style="background-color: #f8fafc;" value="${data.topup}">
+          
           <h6 class="fw-bold text-dark border-bottom pb-1 mb-2">Breakdown Biaya (Rp)</h6>
-          <div class="row"><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">BBM</label><input type="number" id="edit-ga-bbm" class="form-control form-control-sm mb-2" value="${data.bbm}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">TOL</label><input type="number" id="edit-ga-tol" class="form-control form-control-sm mb-2" value="${data.tol}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Parkir</label><input type="number" id="edit-ga-parkir" class="form-control form-control-sm mb-2" value="${data.parkir}"></div><div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Lain2</label><input type="number" id="edit-ga-lain" class="form-control form-control-sm mb-2" value="${data.lain}"></div></div>
+          <div class="row">
+            <div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">BBM</label><input type="number" id="edit-ga-bbm" class="form-control form-control-sm mb-2" value="${data.bbm}"></div>
+            <div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">TOL</label><input type="number" id="edit-ga-tol" class="form-control form-control-sm mb-2" value="${data.tol}"></div>
+            <div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Parkir</label><input type="number" id="edit-ga-parkir" class="form-control form-control-sm mb-2" value="${data.parkir}"></div>
+            <div class="col-6"><label class="form-label small fw-bold mb-1 text-dark">Lain2</label><input type="number" id="edit-ga-lain" class="form-control form-control-sm mb-2" value="${data.lain}"></div>
+          </div>
         </div>`,
       showCancelButton: true,
       confirmButtonText: '<i class="fa-solid fa-save me-1"></i> Simpan',
@@ -363,6 +387,7 @@
           customer: document.getElementById("edit-ga-cust").value,
           alamat: document.getElementById("edit-ga-alamat").value,
           km: document.getElementById("edit-ga-km").value || 0,
+          kmAkhir: document.getElementById("edit-ga-km-akhir").value || "",
           fleet: document.getElementById("edit-ga-fleet").value,
           topup: document.getElementById("edit-ga-topup").value || 0,
           bbm: document.getElementById("edit-ga-bbm").value || 0,
@@ -379,7 +404,7 @@
             if (res.success) {
               Swal.fire("Sukses!", res.pesan, "success");
 
-              // Update data local (Tabel Izin)
+              // Update tabel di layar
               const itemIndex = globalDataIzinGA.findIndex((item) => item.id === idIzin);
               if (itemIndex > -1) {
                 const d = result.value;
@@ -394,5 +419,187 @@
           .updateKoreksiIzinGA(idIzin, result.value);
       }
     });
+  }
+
+  // ===================================================================================
+  // MODUL BARU: FUEL & COST ANOMALY DETECTOR (FRONTEND)
+  // ===================================================================================
+
+  function bukaMenuAnomali() {
+    Swal.fire({
+      title: "Menganalisa Data...",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    google.script.run
+      .withSuccessHandler(function (dataAnomali) {
+        Swal.close();
+
+        // 1. Sembunyikan menu GA lainnya (Zero-Scroll UI)
+        document.getElementById("gaMainMenu").style.display = "none";
+        document.getElementById("gaSubApplications").style.display = "none";
+        document.getElementById("gaSubAnalytics").style.display = "none";
+        document.getElementById("gaSubArchive").style.display = "none";
+
+        // 2. Buat container dinamis jika belum ada (Tanpa merusak HTML asli)
+        let container = document.getElementById("gaSubAnomali");
+        if (!container) {
+          container = document.createElement("div");
+          container.id = "gaSubAnomali";
+          document.getElementById("gaSubArchive").parentNode.appendChild(container); // Letakkan selevel dengan sub-menu lain
+        }
+        container.style.display = "block";
+
+        // 3. Render Antarmuka Anomali
+        let html = `<button class="btn btn-sm btn-light mb-4 text-muted fw-bold shadow-sm border" style="border-radius: var(--radius-btn);" onclick="kembaliKeMenuGA();"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</button>
+      
+      <div class="card card-form p-2 mb-4 border-danger" style="border-top: 4px solid #e11d48 !important;">
+        <div class="card-header border-0 pb-0 d-flex justify-content-between align-items-center">
+          <h6 class="mb-0 fw-bold text-danger"><i class="fas fa-search-dollar me-2"></i> Deteksi Anomali Biaya (Bulan Ini)</h6>
+          <button class="btn btn-sm btn-outline-dark fw-bold" onclick="bukaSetupFleet('')"><i class="fas fa-cogs me-1"></i> Setup Fleet</button>
+        </div>
+        <div class="card-body p-0 mt-3">
+          <div class="table-responsive shadow-sm" style="border-radius: var(--radius-input); border: 1px solid var(--card-border);">
+            <table class="table table-hover align-middle text-center mb-0" style="font-size: 0.8rem;">
+              <thead class="table-light">
+                <tr><th>Tanggal</th><th>Pengguna</th><th>Plat (Fleet)</th><th>Rasio (Rp/KM)</th><th>Batas Wajar</th><th>Status</th></tr>
+              </thead>
+              <tbody>`;
+
+        if (dataAnomali.length === 0) {
+          html += `<tr><td colspan="6" class="text-center py-5 text-success"><i class="fas fa-shield-alt fa-2x mb-2"></i><br><strong class="fs-6">Kondisi Armada Aman!</strong><br><small class="text-muted">Tidak terdeteksi rasio biaya berlebih pada perjalanan bulan ini.</small></td></tr>`;
+        } else {
+          dataAnomali.forEach((row) => {
+            html += `<tr>
+            <td>${row.tgl}</td>
+            <td><strong class="text-primary">${row.user}</strong></td>
+            <td><strong class="text-dark">${row.fleet}</strong></td>
+            <td class="text-danger fw-bold">Rp ${row.rasioAktual}</td>
+            <td class="text-muted">Rp ${row.batasWajar}</td>
+            <td><span class="badge bg-danger shadow-sm">BOROS</span></td>
+          </tr>`;
+          });
+        }
+
+        html += `</tbody></table></div></div></div>`;
+        container.innerHTML = html;
+      })
+      .withFailureHandler(function (error) {
+        // INI ADALAH PENANGKAP ERROR. Jika server gagal, loading akan berhenti dan muncul pesan ini.
+        Swal.fire("Terjadi Kesalahan Komunikasi", error.message, "error");
+      })
+      .getDataAnomaliRealtime();
+  }
+
+  // Fungsi Membuka Modal Setup & Mengisi Dropdown
+  function bukaSetupFleet(kartuFleetPilihan = "") {
+    // 1. Buka Modal
+    let modalConfig = new bootstrap.Modal(document.getElementById("modalAturFleet"));
+    modalConfig.show();
+
+    // 2. Beri status loading pada Dropdown
+    let selectEl = document.getElementById("inputKartuFleet");
+    selectEl.innerHTML = '<option value="" selected disabled>Memuat data fleet...</option>';
+
+    // 3. Minta data ke server dan masukkan ke Dropdown
+    google.script.run
+      .withSuccessHandler(function (list) {
+        selectEl.innerHTML = '<option value="" selected disabled>Pilih Kartu Fleet...</option>';
+        list.forEach((fleet) => {
+          let isSelected = fleet === kartuFleetPilihan ? "selected" : "";
+          selectEl.innerHTML += `<option value="${fleet}" ${isSelected}>${fleet}</option>`;
+        });
+      })
+      .getListFleet(); // Menggunakan fungsi yang sudah ada dari sistem FSET lama kamu!
+  }
+
+  // Fungsi Menyimpan Konfigurasi dengan SweetAlert2
+  function simpanSetupFleet() {
+    let kartuFleet = document.getElementById("inputKartuFleet").value.toUpperCase();
+    let merk = document.getElementById("inputMerk").value.toUpperCase();
+    let tipe = document.getElementById("inputTipe").value.toUpperCase();
+    let bbm = document.getElementById("inputBBM").value;
+    let batasBiaya = document.getElementById("inputBatasBiaya").value;
+
+    if (!kartuFleet || !batasBiaya) {
+      Swal.fire("Data Belum Lengkap!", "Plat Nomor dan Batas Wajar (Rp) wajib diisi.", "warning");
+      return;
+    }
+
+    Swal.fire({
+      title: "Menyimpan Setup...",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res.success) {
+          Swal.fire("Berhasil!", res.pesan, "success");
+          bootstrap.Modal.getInstance(document.getElementById("modalAturFleet")).hide();
+          document.getElementById("formSetupFleet").reset(); // Bersihkan form
+        } else {
+          Swal.fire("Gagal!", res.pesan, "error");
+        }
+      })
+      .simpanDataMasterFleet(kartuFleet, merk, tipe, bbm, batasBiaya);
+  }
+
+  // ==========================================================
+  // INJEKSI RADAR REAL-TIME: POLLING ANOMALI
+  // ==========================================================
+  function cekAnomaliBackground() {
+    google.script.run
+      .withSuccessHandler(function (dataAnomali) {
+        let badge = document.getElementById("badgeAnomali");
+        if (badge) {
+          if (dataAnomali.length > 0) {
+            badge.style.display = "block";
+            badge.innerText = dataAnomali.length;
+          } else {
+            badge.style.display = "none";
+          }
+        }
+      })
+      .getDataAnomaliRealtime();
+  }
+
+  // =======================================================================
+  // FUNGSI BARU: FILTER TABEL AKTIF GA BERDASARKAN FLEET
+  // =======================================================================
+
+  // Fungsi 1: Mengisi opsi dropdown secara otomatis berdasarkan data yang ada
+  function updateDropdownFilterAktif(data) {
+    let selectEl = document.getElementById("filterAktifFleet");
+    if (!selectEl) return;
+
+    // Simpan pilihan saat ini agar tidak tereset saat radar memuat ulang data
+    let currentVal = selectEl.value;
+
+    // Ambil daftar Fleet unik dari data yang aktif
+    let uniqueFleets = [...new Set(data.map((item) => item.fleet).filter((f) => f !== "-" && f !== ""))].sort();
+
+    selectEl.innerHTML = '<option value="ALL">Semua Fleet</option>';
+    uniqueFleets.forEach((f) => {
+      let isSelected = f === currentVal ? "selected" : "";
+      selectEl.innerHTML += `<option value="${f}" ${isSelected}>${f}</option>`;
+    });
+  }
+
+  // Fungsi 2: Menyaring data dan me-render ulang tabel saat opsi dipilih
+  function terapkanFilterAktifGA() {
+    let selectedFleet = document.getElementById("filterAktifFleet").value;
+
+    if (selectedFleet === "ALL") {
+      renderTabelIzinGA(globalDataIzinGA); // Tampilkan semua jika pilih ALL
+    } else {
+      let filteredData = globalDataIzinGA.filter((item) => item.fleet === selectedFleet);
+      renderTabelIzinGA(filteredData); // Tampilkan yang cocok dengan filter saja
+    }
   }
 </script>

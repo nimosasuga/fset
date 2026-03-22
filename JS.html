@@ -30,6 +30,17 @@
       document.getElementById("loginPass").value = kredensial.pass;
       prosesLogin(true);
     }
+    document.querySelectorAll(".btn").forEach((btn) => {
+      btn.classList.add("scale-tap");
+    });
+
+    // 🔥 Auto trigger suggestion saat klik input
+    const inputST = document.getElementById("inputST");
+    if (inputST) {
+      inputST.addEventListener("focus", () => {
+        inputST.dispatchEvent(new Event("input"));
+      });
+    }
   });
 
   function prosesLogin(isAutoLogin = false) {
@@ -186,14 +197,32 @@
     google.script.run
       .withSuccessHandler(function (data) {
         globalSaranST = {};
+
         let datalistHTML = "";
+
         data.forEach((row) => {
           let st = String(row.st).trim();
-          if (st && st !== "TANPA-ST" && !globalSaranST[st]) {
-            globalSaranST[st] = { customer: row.customer, lokasi: row.lokasi };
-            datalistHTML += `<option value="${st}">`;
+
+          if (!st || st === "TANPA-ST") return;
+
+          if (!globalSaranST[st]) {
+            globalSaranST[st] = {
+              customer: row.customer,
+              lokasi: row.lokasi,
+              count: 1,
+            };
+          } else {
+            globalSaranST[st].count++;
           }
         });
+
+        // 🔥 SORT BERDASARKAN FREKUENSI (AI ringan)
+        const sortedST = Object.keys(globalSaranST).sort((a, b) => globalSaranST[b].count - globalSaranST[a].count);
+
+        sortedST.forEach((st) => {
+          datalistHTML += `<option value="${st}">`;
+        });
+
         document.getElementById("datalistST").innerHTML = datalistHTML;
       })
       .getRiwayatUser(currentUser.nrpp);
@@ -201,10 +230,28 @@
 
   function autofillST() {
     const stTeks = document.getElementById("inputST").value.trim();
+
+    if (!stTeks) return;
+
+    // Exact match
     if (globalSaranST[stTeks]) {
-      document.getElementById("inputCustomer").value = globalSaranST[stTeks].customer;
-      document.getElementById("inputLokasi").value = globalSaranST[stTeks].lokasi;
+      isiFormST(globalSaranST[stTeks]);
+      return;
     }
+
+    // 🔥 AI ringan: partial match
+    const kandidat = Object.keys(globalSaranST).find((st) => st.includes(stTeks));
+
+    if (kandidat) {
+      isiFormST(globalSaranST[kandidat]);
+    }
+  }
+
+  function isiFormST(data) {
+    if (!data) return;
+
+    document.getElementById("inputCustomer").value = data.customer;
+    document.getElementById("inputLokasi").value = data.lokasi;
   }
 
   function bukaFormDinas() {
@@ -400,7 +447,9 @@
       .simpanIzinKendaraan(payloadData);
   }
 
-  // FUNGSI UPDATE: Load History Izin Kendaraan User (Dengan Tombol Aksi)
+  // =======================================================================
+  // FUNGSI 1: Menampilkan Tabel Riwayat Kendaraan User (+ Menampilkan KM Akhir)
+  // =======================================================================
   function loadRiwayatKendaraanUser() {
     document.getElementById("tableRiwayatKendaraanUser").innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin text-primary"></i></td></tr>';
 
@@ -411,23 +460,31 @@
           html = '<tr><td colspan="7" class="text-center py-4 text-muted">Belum ada riwayat pengajuan.</td></tr>';
         } else {
           res.forEach((item) => {
+            // Menentukan warna status
             let badgeStatus = "";
             if (item.status === "PENDING") badgeStatus = `<span class="badge bg-warning text-dark">PENDING</span>`;
             else if (item.status === "APPROVED") badgeStatus = `<span class="badge bg-success">APPROVED</span>`;
             else if (item.status === "REJECTED") badgeStatus = `<span class="badge bg-danger">REJECTED</span>`;
             else badgeStatus = `<span class="badge bg-secondary">${item.status}</span>`;
 
-            // Cerdas: Jika sudah isi biaya, tombol jadi hijau dan muncul nominalnya. Jika belum, tombol tambah.
+            // Logika Tombol "Isi Biaya"
             let btnBiaya = "";
-            if (item.totalBiaya > 0) {
-              btnBiaya = `<button class="btn btn-sm btn-light border text-success fw-bold shadow-sm" onclick="bukaModalPengeluaran('${item.id}', ${item.bbm}, ${item.tol}, ${item.parkir}, ${item.lain})"><i class="fa-solid fa-money-bill-wave me-1"></i> Rp ${item.totalBiaya.toLocaleString("id-ID")}</button>`;
+            // Jika biaya sudah lebih dari 0 ATAU user sudah mengisi KM Akhir, tombol berubah hijau
+            if (item.totalBiaya > 0 || item.kmAkhir) {
+              btnBiaya = `<button class="btn btn-sm btn-light border text-success fw-bold shadow-sm" onclick="bukaModalPengeluaran('${item.id}', ${item.bbm}, ${item.tol}, ${item.parkir}, ${item.lain}, '${item.kmAkhir}')"><i class="fa-solid fa-money-bill-wave me-1"></i> Rp ${item.totalBiaya.toLocaleString("id-ID")}</button>`;
             } else {
-              btnBiaya = `<button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="bukaModalPengeluaran('${item.id}', 0, 0, 0, 0)"><i class="fa-solid fa-plus me-1"></i> Isi Biaya</button>`;
+              btnBiaya = `<button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="bukaModalPengeluaran('${item.id}', 0, 0, 0, 0, '')"><i class="fa-solid fa-plus me-1"></i> Isi Biaya & KM</button>`;
             }
+
+            // Teks KM untuk ditampilkan di tabel (Jika KM Akhir ada, tampilkan. Jika tidak, tampilkan "Belum Input")
+            let teksKmAkhir = item.kmAkhir ? item.kmAkhir : "Belum Input";
 
             html += `<tr>
             <td><small>${item.waktu}</small></td>
-            <td><strong class="text-dark">${item.plat}</strong><br><small class="text-muted">KM: ${item.km} | Fleet: ${item.fleet}</small></td>
+            <td>
+              <strong class="text-dark">${item.plat}</strong><br>
+              <small class="text-muted">KM: ${item.km} ➔ ${teksKmAkhir}<br>Fleet: ${item.fleet}</small>
+            </td>
             <td class="text-start" style="max-width: 140px; white-space: normal;"><small>${item.partner}</small></td>
             <td class="text-start">
               <strong class="text-dark">${item.customer}</strong><br>
@@ -444,46 +501,66 @@
       .getRiwayatIzinKendaraanUser(currentUser.nrpp);
   }
 
-  // FUNGSI BARU: Modal Input Biaya Operasional
-  function bukaModalPengeluaran(idIzin, bbmVal, tolVal, parkirVal, lainVal) {
+  // =======================================================================
+  // FUNGSI 2: Modal Input Pengeluaran dari User (+ Input KM Akhir)
+  // =======================================================================
+  function bukaModalPengeluaran(idIzin, bbmVal, tolVal, parkirVal, lainVal, kmAkhirVal) {
     Swal.fire({
-      title: "Input Pengeluaran Jalan",
+      title: "Input Pengeluaran & KM",
       html: `
         <div class="text-start mt-3">
-          <div class="alert bg-light border py-2 small mb-3 text-muted"><i class="fa-solid fa-circle-info text-primary me-1"></i> Isi nominal pengeluaran selama bertugas. Kosongkan jika tidak ada.</div>
+          <div class="alert bg-light border py-2 small mb-3 text-muted">
+            <i class="fa-solid fa-circle-info text-primary me-1"></i> 
+            Wajib laporkan <strong>KM Akhir</strong> kendaraan saat Anda kembali.
+          </div>
           
+          <!-- FIELD BARU: KM AKHIR -->
+          <label class="form-label small fw-bold mb-1 text-primary">KM Akhir Kendaraan <span class="text-danger">*</span></label>
+          <div class="input-group mb-3 shadow-sm">
+            <span class="input-group-text bg-white"><i class="fa-solid fa-gauge-high text-primary"></i></span>
+            <input type="number" id="input-km-akhir" class="form-control fw-bold border-start-0" value="${kmAkhirVal || ""}" placeholder="Contoh: 45050" required>
+          </div>
+
           <label class="form-label small fw-bold mb-1 text-dark">Biaya BBM</label>
-          <div class="input-group mb-3">
+          <div class="input-group mb-2">
             <span class="input-group-text bg-light">Rp</span>
             <input type="number" id="input-bbm" class="form-control" value="${bbmVal || ""}" placeholder="0">
           </div>
 
           <label class="form-label small fw-bold mb-1 text-dark">Biaya Tol</label>
-          <div class="input-group mb-3">
+          <div class="input-group mb-2">
             <span class="input-group-text bg-light">Rp</span>
             <input type="number" id="input-tol" class="form-control" value="${tolVal || ""}" placeholder="0">
           </div>
 
           <label class="form-label small fw-bold mb-1 text-dark">Biaya Parkir</label>
-          <div class="input-group mb-3">
+          <div class="input-group mb-2">
             <span class="input-group-text bg-light">Rp</span>
             <input type="number" id="input-parkir" class="form-control" value="${parkirVal || ""}" placeholder="0">
           </div>
 
-          <label class="form-label small fw-bold mb-1 text-dark">Lain-Lain (Tambal Ban, dll)</label>
-          <div class="input-group mb-3">
+          <label class="form-label small fw-bold mb-1 text-dark">Lain-Lain (Ban bocor, dll)</label>
+          <div class="input-group mb-2">
             <span class="input-group-text bg-light">Rp</span>
             <input type="number" id="input-lain" class="form-control" value="${lainVal || ""}" placeholder="0">
           </div>
         </div>
       `,
       showCancelButton: true,
-      confirmButtonText: '<i class="fa-solid fa-save me-1"></i> Simpan Biaya',
+      confirmButtonText: '<i class="fa-solid fa-save me-1"></i> Simpan Data',
       cancelButtonText: "Batal",
       focusConfirm: false,
       customClass: { confirmButton: "btn btn-primary-saas px-4", cancelButton: "btn btn-light border px-4" },
       preConfirm: () => {
+        // Validasi: Cegah user menyimpan jika KM Akhir kosong
+        const kmAkhirInput = document.getElementById("input-km-akhir").value;
+        if (!kmAkhirInput) {
+          Swal.showValidationMessage("KM Akhir wajib diisi!");
+          return false;
+        }
+
         return {
+          kmAkhir: kmAkhirInput, // Mengirim KM Akhir ke Backend
           bbm: document.getElementById("input-bbm").value || 0,
           tol: document.getElementById("input-tol").value || 0,
           parkir: document.getElementById("input-parkir").value || 0,
@@ -497,12 +574,12 @@
           .withSuccessHandler(function (res) {
             if (res.success) {
               Swal.fire("Sukses!", res.pesan, "success");
-              loadRiwayatKendaraanUser(); // Auto-refresh tabel
+              loadRiwayatKendaraanUser(); // Refresh tabel agar KM Akhir yang baru diinput langsung muncul
             } else {
               Swal.fire("Gagal", res.pesan, "error");
             }
           })
-          .simpanPengeluaranKendaraan(idIzin, result.value);
+          .simpanPengeluaranKendaraan(idIzin, result.value); // Mengirim data ke file 09_Izin_Kendaraan.gs
       }
     });
   }
@@ -1078,7 +1155,7 @@
   let globalPendingApprovalData = [];
 
   function loadAdminDashboard() {
-    document.getElementById("tableAdminOut").innerHTML = '<tr><td colspan="4" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary"></i><br>Memuat Pantauan...</td></tr>';
+    renderSkeletonTableAdminOut();
     document.getElementById("adminRekapKaryawanContainer").style.display = "block";
 
     google.script.run
@@ -1193,7 +1270,9 @@
     dataAktif.forEach((item) => {
       const tr = document.createElement("tr");
 
-      // Mencegah error jika waktu_keluar kosong
+      // 🔥 ANIMATION
+      tr.classList.add("fade-in");
+
       let jam = item.waktu_keluar ? item.waktu_keluar.split(" ")[1] : "-";
       let tgl = item.waktu_keluar ? item.waktu_keluar.split(" ")[0] : "-";
 
@@ -1203,6 +1282,7 @@
         <td class="text-start"><strong>${item.customer}</strong><br><small class="text-truncate d-inline-block" style="max-width: 150px;" title="${item.lokasi}">${item.lokasi}</small></td>
         <td><span class="text-danger fw-bold"><i class="fa-solid fa-clock"></i> ${jam}</span><br><small class="text-muted">${tgl}</small></td>
       `;
+
       tbody.appendChild(tr);
     });
   }
@@ -1835,5 +1915,34 @@
         }
       })
       .generatePDFBase64(nrpp, st);
+  }
+
+  // ================= SKELETON HELPER =================
+  function renderSkeletonTableAdminOut() {
+    const tbody = document.getElementById("tableAdminOut");
+    if (!tbody) return;
+
+    tbody.innerHTML = "";
+
+    for (let i = 0; i < 5; i++) {
+      const tr = document.createElement("tr");
+
+      tr.innerHTML = `
+        <td>
+          <div class="skeleton skeleton-text" style="width:80%"></div>
+          <div class="skeleton skeleton-text" style="width:60%"></div>
+        </td>
+        <td><div class="skeleton skeleton-box"></div></td>
+        <td>
+          <div class="skeleton skeleton-text" style="width:90%"></div>
+          <div class="skeleton skeleton-text" style="width:70%"></div>
+        </td>
+        <td>
+          <div class="skeleton skeleton-text" style="width:50%"></div>
+        </td>
+      `;
+
+      tbody.appendChild(tr);
+    }
   }
 </script>

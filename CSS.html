@@ -385,4 +385,62 @@
       font-size: 0.95rem;
     }
   }
+  /* ================= SKELETON LOADING ================= */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: #e2e8f0;
+  }
+
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -150px;
+    height: 100%;
+    width: 150px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    animation: shimmer 1.2s infinite;
+  }
+
+  @keyframes shimmer {
+    100% {
+      transform: translateX(300%);
+    }
+  }
+
+  .skeleton-text {
+    height: 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+
+  .skeleton-box {
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  /* ================= MICRO ANIMATION ================= */
+  .fade-in {
+    animation: fadeIn 0.35s ease;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .scale-tap {
+    transition: transform 0.15s ease;
+  }
+
+  .scale-tap:active {
+    transform: scale(0.96);
+  }
 </style>
