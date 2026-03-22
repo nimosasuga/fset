@@ -12,7 +12,7 @@
     <?!= include('CSS'); ?>
     <style>
       body {
-        padding-top: 65px !important; /* Mengurangi jarak kosong dari Navbar */
+        padding-top: 45px !important; /* Mengurangi jarak kosong dari Navbar */
       }
       #pageDashboard {
         margin-top: 5px !important; /* Menarik konten dashboard sedikit lebih ke atas */
@@ -334,102 +334,177 @@
         <div id="sectionAdmin" style="display: none">
           <div class="mb-4">
             <h4 class="text-dark fw-bold mb-1">Dashboard HRD</h4>
-            <p class="text-muted small">Pantau status perjalanan dinas dan pengeluaran UPD secara real-time.</p>
+            <p class="text-muted small">Pilih menu untuk memantau aktivitas operasional.</p>
           </div>
 
-          <div class="row g-3 mb-4">
-            <div class="col-6">
-              <div class="card card-form border-0 shadow-saas h-100 mb-0">
-                <div class="card-body p-3 d-flex flex-column justify-content-center">
-                  <div class="d-flex align-items-center mb-2">
-                    <div class="icon-box icon-amber me-2" style="width: 36px; height: 36px; font-size: 1rem"><i class="fa-solid fa-truck-fast"></i></div>
-                    <span class="text-muted small fw-bold">Dinas Luar</span>
+          <!-- 1. KARTU MENU NAVIGASI ATAS -->
+          <div class="row text-center mb-4">
+            <div class="col-6 col-md-3 mb-3">
+              <div id="card-hrd-dinas" class="card card-form shadow-sm h-100 border-primary" onclick="pindahTabHRD('dinas')" style="cursor: pointer; border-bottom-width: 4px !important">
+                <div class="card-body p-3 position-relative">
+                  <span id="badge-dinas-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none; z-index: 10">0</span>
+                  <div class="icon-box icon-indigo mx-auto mb-2"><i class="fa-solid fa-car-side"></i></div>
+                  <span class="small fw-bold text-dark">Personil Dinas</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+              <div id="card-hrd-approval" class="card card-form shadow-sm h-100" onclick="pindahTabHRD('approval')" style="cursor: pointer; border-bottom-width: 4px !important">
+                <div class="card-body p-3 position-relative">
+                  <span id="badge-approval-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none; z-index: 10">0</span>
+                  <div class="icon-box icon-amber mx-auto mb-2"><i class="fa-solid fa-clipboard-check"></i></div>
+                  <span class="small fw-bold text-dark">Butuh Approval</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+              <div id="card-hrd-rekap" class="card card-form shadow-sm h-100" onclick="pindahTabHRD('rekap')" style="cursor: pointer; border-bottom-width: 4px !important">
+                <div class="card-body p-3">
+                  <div class="icon-box icon-emerald mx-auto mb-2"><i class="fa-solid fa-folder-open"></i></div>
+                  <span class="small fw-bold text-dark">Rekap & Log</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 mb-3">
+              <div id="card-hrd-tarif" class="card card-form shadow-sm h-100" onclick="pindahTabHRD('tarif')" style="cursor: pointer; border-bottom-width: 4px !important">
+                <div class="card-body p-3">
+                  <div class="icon-box icon-indigo mx-auto mb-2"><i class="fa-solid fa-money-bill-wave"></i></div>
+                  <span class="small fw-bold text-dark">Master Tarif</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. KONTEN TAB: PERSONIL DINAS (Default Aktif) -->
+          <div id="tab-hrd-dinas" class="tab-hrd-content">
+            <div class="row g-3 mb-4">
+              <div class="col-6">
+                <div class="card card-form border-0 h-100 mb-0">
+                  <div class="card-body p-3 d-flex flex-column justify-content-center">
+                    <div class="d-flex align-items-center mb-2">
+                      <div class="icon-box icon-amber me-2" style="width: 36px; height: 36px; font-size: 1rem"><i class="fa-solid fa-truck-fast"></i></div>
+                      <span class="text-muted small fw-bold">Dinas Luar</span>
+                    </div>
+                    <h3 class="mb-0 fw-bold text-dark" id="admTotalOut">0 <span class="fs-6 text-muted fw-normal">Personil</span></h3>
                   </div>
-                  <h3 class="mb-0 fw-bold text-dark" id="admTotalOut">0 <span class="fs-6 text-muted fw-normal">Personil</span></h3>
                 </div>
               </div>
-            </div>
-            <div class="col-6">
-              <div class="card card-form border-0 shadow-saas h-100 mb-0">
-                <div class="card-body p-3 d-flex flex-column justify-content-center">
-                  <div class="d-flex align-items-center mb-2">
-                    <div class="icon-box icon-emerald me-2" style="width: 36px; height: 36px; font-size: 1rem"><i class="fa-solid fa-money-bill-wave"></i></div>
-                    <span class="text-muted small fw-bold">UPD Bulan Ini</span>
+              <div class="col-6">
+                <div class="card card-form border-0 h-100 mb-0">
+                  <div class="card-body p-3 d-flex flex-column justify-content-center">
+                    <div class="d-flex align-items-center mb-2">
+                      <div class="icon-box icon-emerald me-2" style="width: 36px; height: 36px; font-size: 1rem"><i class="fa-solid fa-money-bill-wave"></i></div>
+                      <span class="text-muted small fw-bold">UPD Bulan Ini</span>
+                    </div>
+                    <h4 class="mb-0 fw-bold text-dark" id="admTotalUPD" style="letter-spacing: -0.5px">Rp 0</h4>
                   </div>
-                  <h4 class="mb-0 fw-bold text-dark" id="admTotalUPD" style="letter-spacing: -0.5px">Rp 0</h4>
+                </div>
+              </div>
+            </div>
+
+            <div class="card card-form mb-4 p-2 border-primary" style="border-color: #bfdbfe !important">
+              <div class="card-header border-0 pb-0">
+                <h6 class="mb-0 fw-bold text-primary"><i class="fa-solid fa-satellite-dish me-2"></i> Radar Personil (Real-time)</h6>
+              </div>
+              <div class="card-body p-0 mt-3">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-light">
+                      <tr>
+                        <th>NAMA PERSONIL</th>
+                        <th>NO. ST</th>
+                        <th>LOKASI & CUSTOMER</th>
+                        <th>WAKTU KELUAR</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tableAdminOut">
+                      <tr>
+                        <td colspan="4" class="text-center py-4">Memuat pantauan...</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="card card-form mb-4 p-2">
-            <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
-              <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-money-check-dollar text-success me-2"></i> Master Tarif UPD</h6>
-              <button class="btn btn-sm btn-success fw-bold" onclick="bukaModalTambahTarif()"><i class="fa-solid fa-plus me-1"></i> Tambah</button>
-            </div>
-            <div class="card-body p-0 mt-3">
-              <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 text-center">
-                  <thead>
-                    <tr>
-                      <th>JABATAN</th>
-                      <th>UPD (≥8 Jam)</th>
-                      <th>UPD (<8 Jam)</th>
-                      <th>Makan</th>
-                      <th>Lain2 (Kerja)</th>
-                      <th>Lain2 (Libur)</th>
-                      <th>Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tableAdminTarif">
-                    <tr>
-                      <td colspan="7" class="text-center py-4">Memuat data tarif...</td>
-                    </tr>
-                  </tbody>
-                </table>
+          <!-- 3. KONTEN TAB: BUTUH APPROVAL -->
+          <div id="tab-hrd-approval" class="tab-hrd-content" style="display: none">
+            <div class="card card-form mb-4 p-2 border-warning" style="border-color: #fde68a !important">
+              <div class="card-header border-0 pb-0">
+                <h6 class="mb-0 fw-bold text-warning"><i class="fa-solid fa-hourglass-half me-2"></i> Antrean Persetujuan UPD</h6>
               </div>
-            </div>
-          </div>
-
-          <div class="card card-form mb-4 p-2">
-            <div class="card-header border-0 pb-0">
-              <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-users-viewfinder text-primary me-2"></i> Rekap & Log Karyawan</h6>
-            </div>
-            <div class="card-body p-3">
-              <div class="input-group mb-4 shadow-sm" style="border-radius: var(--radius-input)">
-                <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-search text-muted"></i></span>
-                <select id="adminSelectKaryawan" class="form-select border-start-0 ps-0"></select>
-                <button class="btn btn-primary fw-bold px-4" onclick="lihatRekapKaryawanAdmin()">Cari</button>
-              </div>
-              <div id="adminRekapKaryawanContainer">
-                <div class="text-center py-4 text-muted bg-light" style="border-radius: var(--radius-card); border: 1px dashed var(--card-border)">
-                  <i class="fa-solid fa-hand-pointer fa-2x mb-2 text-primary opacity-50"></i><br /><span class="fw-bold">Pilih Karyawan</span><br /><small>Untuk melihat riwayat & persetujuan.</small>
+              <div class="card-body p-0 mt-3">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-light">
+                      <tr>
+                        <th>NAMA</th>
+                        <th>ST & LOKASI</th>
+                        <th>WAKTU (KELUAR - MASUK)</th>
+                        <th>AKSI</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tableAdminPendingApproval">
+                      <tr>
+                        <td colspan="4" class="text-center py-4">Pilih tab ini untuk memuat data.</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="card card-form mb-5 p-2 border-danger" style="border-color: #fecdd3 !important">
-            <div class="card-header border-0 pb-0">
-              <h6 class="mb-0 fw-bold text-danger"><i class="fa-solid fa-map-location-dot me-2"></i> Personil Sedang Dinas</h6>
+          <!-- 4. KONTEN TAB: REKAP & LOG -->
+          <div id="tab-hrd-rekap" class="tab-hrd-content" style="display: none">
+            <div class="card card-form mb-4 p-2">
+              <div class="card-header border-0 pb-0">
+                <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-folder-open text-success me-2"></i> Cari Riwayat Karyawan</h6>
+              </div>
+              <div class="card-body p-3">
+                <div class="input-group mb-4 shadow-sm" style="border-radius: var(--radius-input)">
+                  <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-search text-muted"></i></span>
+                  <select id="adminSelectKaryawan" class="form-select border-start-0 ps-0"></select>
+                  <button class="btn btn-success fw-bold px-4" onclick="lihatRekapKaryawanAdmin()">Cari</button>
+                </div>
+                <div id="adminRekapKaryawanContainer">
+                  <div class="text-center py-4 text-muted bg-light" style="border-radius: var(--radius-card); border: 1px dashed var(--card-border)">
+                    <i class="fa-solid fa-hand-pointer fa-2x mb-2 text-success opacity-50"></i><br /><span class="fw-bold">Pilih Karyawan</span><br /><small>Untuk melihat riwayat & persetujuan.</small>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="card-body p-0 mt-3">
-              <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 text-center">
-                  <thead style="background-color: #fff1f2">
-                    <tr>
-                      <th>NAMA PERSONIL</th>
-                      <th>NO. ST</th>
-                      <th>LOKASI & CUSTOMER</th>
-                      <th>WAKTU KELUAR</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tableAdminOut">
-                    <tr>
-                      <td colspan="4" class="text-center py-4">Memuat pantauan...</td>
-                    </tr>
-                  </tbody>
-                </table>
+          </div>
+
+          <!-- 5. KONTEN TAB: MASTER TARIF -->
+          <div id="tab-hrd-tarif" class="tab-hrd-content" style="display: none">
+            <div class="card card-form mb-4 p-2">
+              <div class="card-header d-flex justify-content-between align-items-center border-0 pb-0">
+                <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-money-check-dollar text-info me-2"></i> Master Tarif UPD</h6>
+                <button class="btn btn-sm btn-info text-white fw-bold" onclick="bukaModalTambahTarif()"><i class="fa-solid fa-plus me-1"></i> Tambah</button>
+              </div>
+              <div class="card-body p-0 mt-3">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-light">
+                      <tr>
+                        <th>JABATAN</th>
+                        <th>UPD (≥8 Jam)</th>
+                        <th>UPD (<8 Jam)</th>
+                        <th>Makan</th>
+                        <th>Lain2 (Kerja)</th>
+                        <th>Lain2 (Libur)</th>
+                        <th>Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tableAdminTarif">
+                      <tr>
+                        <td colspan="7" class="text-center py-4">Memuat data tarif...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -666,7 +741,7 @@
     </div>
 
     <footer class="global-watermark">
-      <div><span class="version-text">FSET Versi 2.1.117</span></div>
+      <div><span class="version-text">FSET Versi 2.1.135</span></div>
       <div class="mt-1">dibuat dengan <i class="fa-solid fa-heart heart-icon"></i> Exprosa Lab 2026</div>
     </footer>
 

@@ -67,11 +67,19 @@ function generatePDFBase64(nrpp, st) {
       }
     }
 
+    // ====================================================================
+    // PERBAIKAN: Format ST Mengikuti Bulan & Tahun Keberangkatan
+    // ====================================================================
     const bulanRomawi = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
-    const tglSekarang = new Date();
-    const blnRomawi_Str = bulanRomawi[tglSekarang.getMonth()];
-    const thn_Str = tglSekarang.getFullYear();
+
+    // Gunakan tanggal keberangkatan (minTglKeluar). Jika kosong, baru gunakan tanggal cetak
+    const tglReferensi = minTglKeluar ? minTglKeluar : new Date();
+
+    const blnRomawi_Str = bulanRomawi[tglReferensi.getMonth()]; // Mengambil bulan dari tanggal berangkat
+    const thn_Str = tglReferensi.getFullYear(); // Mengambil tahun dari tanggal berangkat
+
     const formatSTLengkap = `${formatST(st)}/JKT/ST-PS/${blnRomawi_Str}/${thn_Str}`;
+    // ====================================================================
 
     const template = HtmlService.createTemplateFromFile("Template_PDF");
     template.data = {

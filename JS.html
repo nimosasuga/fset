@@ -1070,104 +1070,122 @@
   }
 
   // ===================================================================================
-  // FUNGSI BARU: DASHBOARD HRD & RADAR BACKGROUND POLLING
+  // FUNGSI HRD: DASHBOARD PENGAWAS & RADAR BACKGROUND POLLING (UPDATE BADGE DINAS)
   // ===================================================================================
 
-  let globalTotalLogServer = 0;
+  let globalStateRadar = "";
   let intervalRadarHRD = null;
+  let globalPendingApprovalData = [];
 
   function loadAdminDashboard() {
     document.getElementById("tableAdminOut").innerHTML = '<tr><td colspan="4" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary"></i><br>Memuat Pantauan...</td></tr>';
-
-    // Pastikan UI tetap model Sub-Menu Cards (Disembunyikan yang tidak perlu)
     document.getElementById("adminRekapKaryawanContainer").style.display = "block";
 
     google.script.run
       .withSuccessHandler(function (res) {
-        // 1. Update Sub-Menu Cards (Metrik Atas)
         document.getElementById("admTotalOut").innerHTML = `${res.totalOut} <span class="fs-6 text-muted fw-normal">Personil</span>`;
         document.getElementById("admTotalUPD").innerText = "Rp " + (res.totalUPDBulanIni || 0).toLocaleString("id-ID");
 
-        // 2. Render Tabel dengan DOM Murni
+        // --- TAMBAHAN BARU: Update Badge Personil Dinas ---
+        const badgeDinas = document.getElementById("badge-dinas-count");
+        if (badgeDinas) {
+          badgeDinas.style.display = res.totalOut > 0 ? "inline-block" : "none";
+          badgeDinas.innerText = res.totalOut;
+        }
+        // --------------------------------------------------
+
         renderTabelAdminOut(res.aktifOut);
 
-        // 3. Tarik angka total baris dari server (estimasi kasar untuk patokan awal radar)
-        // Kita set 0 dulu agar radar pertama kali akan langsung sinkronisasi
-        globalTotalLogServer = 0;
-
-        // 4. Nyalakan Background Short Polling
+        globalStateRadar = "";
         nyalakanRadarNotifikasiHRD();
 
-        // 5. Load Data Master Tarif (Fungsi yang sudah ada sebelumnya)
         loadAdminTarif();
+        loadDropdownKaryawanHRD();
+
+        // Memuat badge antrean secara diam-diam
+        if (typeof loadPendingApprovals === "function") {
+          loadPendingApprovals(true);
+        }
       })
       .getAdminDashboardData();
   }
 
   function nyalakanRadarNotifikasiHRD() {
-    // Bersihkan interval lama agar tidak dobel
     if (intervalRadarHRD) clearInterval(intervalRadarHRD);
 
-    // Gunakan metode Background Short Polling dengan setInterval 10 detik
     intervalRadarHRD = setInterval(() => {
       google.script.run
         .withSuccessHandler((res) => {
-          // Sinkronisasi data awal jika globalTotalLogServer masih 0
-          if (globalTotalLogServer === 0) {
-            globalTotalLogServer = res.totalBaru;
+          if (globalStateRadar === "") {
+            globalStateRadar = res.newState;
             return;
           }
 
-          if (res && res.hasNew) {
-            globalTotalLogServer = res.totalBaru; // Update patokan baru
+          if (res && res.hasChanged) {
+            globalStateRadar = res.newState;
 
-            // 1. Bunyikan efek suara
             let audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
-            audio.play().catch((e) => console.log("Auto-play suara ditahan browser"));
+            audio.play().catch((e) => console.log("Auto-play ditahan browser"));
 
-            // 2. Munculkan Toast Notifikasi
             Swal.fire({
               toast: true,
               position: "top-end",
               icon: "info",
-              title: "Ada Absen Pos / Perjalanan Baru!",
+              title: "Update Pos: Ada yang Keluar / Kembali!",
               showConfirmButton: false,
               timer: 4000,
             });
 
-            // 3. Render ulang metrik & tabel secara halus di background
-            refreshDashboardHRDBackground();
+            document.getElementById("admTotalOut").innerHTML = `${res.data.totalOut} <span class="fs-6 text-muted fw-normal">Personil</span>`;
+            document.getElementById("admTotalUPD").innerText = "Rp " + (res.data.totalUPDBulanIni || 0).toLocaleString("id-ID");
+
+            // --- TAMBAHAN BARU: Update Badge Personil Dinas secara Real-Time ---
+            const badgeDinas = document.getElementById("badge-dinas-count");
+            if (badgeDinas) {
+              badgeDinas.style.display = res.data.totalOut > 0 ? "inline-block" : "none";
+              badgeDinas.innerText = res.data.totalOut;
+            }
+            // -------------------------------------------------------------------
+
+            renderTabelAdminOut(res.data.aktifOut);
+
+            // Update juga badge approval jika ada yang kembali masuk
+            if (typeof loadPendingApprovals === "function") {
+              loadPendingApprovals(true);
+            }
           }
         })
-        .cekNotifikasiAbsenBaruHRD(globalTotalLogServer);
+        .cekNotifikasiAbsenBaruHRD(globalStateRadar);
     }, 10000);
   }
 
   function refreshDashboardHRDBackground() {
     google.script.run
       .withSuccessHandler(function (res) {
-        // Update Metrik Cards
         document.getElementById("admTotalOut").innerHTML = `${res.totalOut} <span class="fs-6 text-muted fw-normal">Personil</span>`;
         document.getElementById("admTotalUPD").innerText = "Rp " + (res.totalUPDBulanIni || 0).toLocaleString("id-ID");
 
-        // Render tabel menggunakan DOM Murni
+        // --- TAMBAHAN BARU: Update Badge Personil Dinas ---
+        const badgeDinas = document.getElementById("badge-dinas-count");
+        if (badgeDinas) {
+          badgeDinas.style.display = res.totalOut > 0 ? "inline-block" : "none";
+          badgeDinas.innerText = res.totalOut;
+        }
+        // --------------------------------------------------
+
         renderTabelAdminOut(res.aktifOut);
       })
       .getAdminDashboardData();
   }
 
-  // Gunakan DOM Murni (document.createElement) agar tidak kena bug browser
+  // --- DOM MURNI UNTUK RENDER TABEL (ANTI CRASH) ---
   function renderTabelAdminOut(dataAktif) {
     const tbody = document.getElementById("tableAdminOut");
-    tbody.innerHTML = ""; // Kosongkan tabel aman
+    tbody.innerHTML = "";
 
     if (!dataAktif || dataAktif.length === 0) {
       const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 4;
-      td.className = "text-center py-4 text-muted";
-      td.textContent = "Semua personil sedang Standby di kantor.";
-      tr.appendChild(td);
+      tr.innerHTML = `<td colspan="4" class="text-center py-4 text-muted">Semua personil sedang Standby di kantor.</td>`;
       tbody.appendChild(tr);
       return;
     }
@@ -1175,30 +1193,647 @@
     dataAktif.forEach((item) => {
       const tr = document.createElement("tr");
 
-      const tdNama = document.createElement("td");
-      tdNama.innerHTML = `<strong class="text-primary">${item.nama}</strong><br><small class="text-muted">NRPP: ${item.nrpp}</small>`;
-      tr.appendChild(tdNama);
+      // Mencegah error jika waktu_keluar kosong
+      let jam = item.waktu_keluar ? item.waktu_keluar.split(" ")[1] : "-";
+      let tgl = item.waktu_keluar ? item.waktu_keluar.split(" ")[0] : "-";
 
-      const tdST = document.createElement("td");
-      tdST.innerHTML = `<span class="badge bg-light text-dark border shadow-sm">${item.st}</span>`;
-      tr.appendChild(tdST);
-
-      const tdLokasi = document.createElement("td");
-      tdLokasi.className = "text-start";
-      tdLokasi.innerHTML = `<strong>${item.customer}</strong><br><small class="text-truncate d-inline-block" style="max-width: 150px;" title="${item.lokasi}">${item.lokasi}</small>`;
-      tr.appendChild(tdLokasi);
-
-      const tdWaktu = document.createElement("td");
-      tdWaktu.innerHTML = `<span class="text-danger fw-bold"><i class="fa-solid fa-clock"></i> ${item.waktu_keluar.split(" ")[1]}</span><br><small class="text-muted">${item.waktu_keluar.split(" ")[0]}</small>`;
-      tr.appendChild(tdWaktu);
-
+      tr.innerHTML = `
+        <td><strong class="text-primary">${item.nama}</strong><br><small class="text-muted">NRPP: ${item.nrpp}</small></td>
+        <td><span class="badge bg-light text-dark border shadow-sm">${item.st}</span></td>
+        <td class="text-start"><strong>${item.customer}</strong><br><small class="text-truncate d-inline-block" style="max-width: 150px;" title="${item.lokasi}">${item.lokasi}</small></td>
+        <td><span class="text-danger fw-bold"><i class="fa-solid fa-clock"></i> ${jam}</span><br><small class="text-muted">${tgl}</small></td>
+      `;
       tbody.appendChild(tr);
     });
   }
 
-  // Dummy penopang loadAdminTarif karena dipanggil di fungsi atas
+  // ===================================================================================
+  // PERBAIKAN: FUNGSI YANG HILANG (TARIF, DROPDOWN, & REKAP HRD)
+  // ===================================================================================
+
   function loadAdminTarif() {
-    // (Opsional, pastikan fungsi ini sudah ada di skrip Anda untuk memuat tabel tarif UPD HRD)
-    // Jika sudah ada, biarkan saja.
+    document.getElementById("tableAdminTarif").innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin text-primary"></i></td></tr>';
+    google.script.run
+      .withSuccessHandler(function (res) {
+        globalAdminTarifData = res;
+        let html = "";
+        if (res.length === 0) {
+          html = '<tr><td colspan="7" class="text-center text-muted py-4">Belum ada data tarif.</td></tr>';
+        } else {
+          res.forEach((t) => {
+            html += `<tr>
+              <td class="fw-bold text-dark">${t.jabatan}</td>
+              <td>Rp ${t.upd_full.toLocaleString("id-ID")}</td>
+              <td>Rp ${t.upd_half.toLocaleString("id-ID")}</td>
+              <td>Rp ${t.makan.toLocaleString("id-ID")}</td>
+              <td>Rp ${t.lain_kerja.toLocaleString("id-ID")}</td>
+              <td>Rp ${t.lain_libur.toLocaleString("id-ID")}</td>
+              <td>
+                <button class="btn btn-sm btn-light border text-primary shadow-sm" onclick="bukaModalEditTarif(${t.id})"><i class="fa-solid fa-pen"></i></button>
+              </td>
+            </tr>`;
+          });
+        }
+        document.getElementById("tableAdminTarif").innerHTML = html;
+      })
+      .getAdminTarifData();
+  }
+
+  function loadDropdownKaryawanHRD() {
+    google.script.run
+      .withSuccessHandler(function (list) {
+        let selectEl = document.getElementById("adminSelectKaryawan");
+        let selectArsip = document.getElementById("adminSelectKaryawanArsip");
+
+        let options = '<option value="" selected disabled>Pilih Karyawan...</option>';
+        list.forEach((k) => {
+          options += `<option value="${k.nrpp}">${k.nrpp} - ${k.nama}</option>`;
+        });
+
+        if (selectEl) selectEl.innerHTML = options;
+        if (selectArsip) selectArsip.innerHTML = options;
+      })
+      .getListKaryawan();
+  }
+
+  // ===================================================================================
+  // FUNGSI UPDATE: MENAMPILKAN REKAP KARYAWAN + FITUR APPROVAL HRD
+  // ===================================================================================
+
+  function lihatRekapKaryawanAdmin() {
+    let nrpp = document.getElementById("adminSelectKaryawan").value;
+    if (!nrpp) return Swal.fire("Oops", "Pilih karyawan terlebih dahulu", "warning");
+    document.getElementById("adminRekapKaryawanContainer").innerHTML = '<div class="text-center py-4"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary"></i><br>Menarik Data...</div>';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        // Simpan data log secara global agar bisa diakses oleh Modal Koreksi
+        globalAdminLogData = res.log || [];
+
+        let html = `
+           <div class="d-flex justify-content-between align-items-center mb-3">
+             <h6 class="text-dark fw-bold mb-0"><i class="fa-solid fa-list-ul text-secondary me-2"></i>Riwayat Bulan Berjalan</h6>
+             <button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="cetakLogHRD('${nrpp}', 'CURRENT')"><i class="fa-solid fa-print me-1"></i> Cetak Log</button>
+           </div>
+           <div class="table-responsive"><table class="table table-sm text-center align-middle">
+           <thead class="table-light">
+             <tr><th>ST</th><th>Waktu Keluar</th><th>Waktu Masuk</th><th>Customer & Lokasi</th><th>Status</th><th>Validasi</th><th>Aksi</th></tr>
+           </thead><tbody>`;
+
+        if (globalAdminLogData.length > 0) {
+          globalAdminLogData.forEach((r) => {
+            // Label Validasi
+            let valBadge =
+              r.validasi === "APPROVED"
+                ? `<span class="badge bg-success" title="Approved"><i class="fa-solid fa-check-double"></i></span>`
+                : r.validasi === "ADJUSTED"
+                  ? `<span class="badge bg-info text-dark" title="Telah Dikoreksi HRD"><i class="fa-solid fa-pen-clip"></i></span>`
+                  : `<span class="badge bg-secondary">PENDING</span>`;
+
+            // Logika Tombol Aksi HRD
+            let aksiBtn = "";
+            if (r.validasi !== "APPROVED") {
+              // Tombol Koreksi (Bisa untuk status OUT maupun IN)
+              aksiBtn += `<button class="btn btn-sm btn-light border text-primary shadow-sm me-1" onclick="bukaModalKoreksiLogHRD('${r.id}')" title="Koreksi Data"><i class="fa-solid fa-pen"></i></button>`;
+
+              // Tombol Approve (Hanya jika status sudah IN / Selesai Perjalanan)
+              if (r.status === "IN") {
+                aksiBtn += `<button class="btn btn-sm btn-success shadow-sm" onclick="aksiApproveLogHRD('${r.id}')" title="Approve UPD"><i class="fa-solid fa-check"></i></button>`;
+              }
+            } else {
+              aksiBtn = `<span class="text-muted small"><i class="fa-solid fa-lock"></i> Selesai</span>`;
+            }
+
+            html += `<tr>
+                    <td><span class="badge bg-light text-dark border shadow-sm">${r.st}</span></td>
+                    <td><small>${r.tgl_keluar}</small></td>
+                    <td><small>${r.tgl_masuk}</small></td>
+                    <td class="text-start"><small><strong>${r.customer}</strong><br><span class="text-muted text-truncate d-inline-block" style="max-width: 150px;">${r.lokasi}</span></small></td>
+                    <td><span class="badge ${r.status === "OUT" ? "bg-warning text-dark" : "bg-light text-dark border"}">${r.status}</span></td>
+                    <td>${valBadge}</td>
+                    <td class="text-nowrap">${aksiBtn}</td>
+                 </tr>`;
+          });
+        } else {
+          html += `<tr><td colspan="7" class="text-muted py-4">Tidak ada riwayat perjalanan untuk karyawan ini.</td></tr>`;
+        }
+        html += `</tbody></table></div>`;
+        document.getElementById("adminRekapKaryawanContainer").innerHTML = html;
+      })
+      .getAllRekapForAdmin(nrpp);
+  }
+
+  // ===================================================================================
+  // FUNGSI UPDATE: AKSI APPROVAL HRD DENGAN REAL-TIME AUTO REFRESH
+  // ===================================================================================
+
+  function aksiApproveLogHRD(idTransaksi) {
+    Swal.fire({
+      title: "Approve Perjalanan?",
+      text: "Data ini akan disahkan dan masuk ke dalam perhitungan pencairan UPD bulan ini.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#10b981",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "Ya, Approve!",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({ title: "Memproses...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res.success) {
+              Swal.fire("Sukses!", res.pesan, "success");
+
+              // --- TAMBAHAN BARU: REAL-TIME REFRESH TRIGGER ---
+
+              // 1. Refresh tabel antrean "Butuh Approval" dan update angka ikon Badge
+              if (typeof loadPendingApprovals === "function") {
+                loadPendingApprovals(true);
+              }
+
+              // 2. Refresh tabel "Rekap Karyawan" (jika HRD sedang membukanya)
+              if (document.getElementById("adminSelectKaryawan") && document.getElementById("adminSelectKaryawan").value) {
+                lihatRekapKaryawanAdmin();
+              }
+
+              // 3. Refresh metrik total UPD di dashboard utama secara diam-diam
+              if (typeof refreshDashboardHRDBackground === "function") {
+                refreshDashboardHRDBackground();
+              }
+
+              // ------------------------------------------------
+            } else {
+              Swal.fire("Gagal", res.pesan, "error");
+            }
+          })
+          .approveLogAdmin(idTransaksi);
+      }
+    });
+  }
+
+  function bukaModalKoreksiLogHRD(idTransaksi) {
+    // CARI DI DUA MEMORI: Memori Rekap Tab ATAU Memori Approval Tab
+    let dataLog = globalAdminLogData.find((item) => item.id === idTransaksi);
+
+    // Jika tidak ketemu di memori Rekap, cari di memori Approval
+    if (!dataLog && typeof globalPendingApprovalData !== "undefined") {
+      dataLog = globalPendingApprovalData.find((item) => item.id === idTransaksi);
+    }
+
+    if (!dataLog) return Swal.fire("Error", "Data tidak ditemukan di memori.", "error");
+    Swal.fire({
+      title: "Koreksi Log Perjalanan",
+      html: `
+        <div class="text-start mt-2" style="max-height: 60vh; overflow-y: auto; padding-right: 5px;">
+          <div class="alert bg-light border py-2 small mb-3 text-muted"><i class="fa-solid fa-circle-info text-primary me-1"></i> Jika waktu dikoreksi, sistem akan otomatis menghitung ulang nominal UPD karyawan.</div>
+          
+          <label class="form-label small fw-bold mb-1 text-dark">Status Perjalanan</label>
+          <select id="edit-log-status" class="form-select mb-3">
+            <option value="OUT" ${dataLog.status === "OUT" ? "selected" : ""}>OUT (Masih di Luar / Lupa Absen)</option>
+            <option value="IN" ${dataLog.status === "IN" ? "selected" : ""}>IN (Sudah Kembali)</option>
+          </select>
+          
+          <label class="form-label small fw-bold mb-1 text-dark">Nomor Surat Tugas</label>
+          <input type="text" id="edit-log-st" class="form-control mb-3" value="${dataLog.st}">
+          
+          <div class="row mb-3">
+            <div class="col-6">
+              <label class="form-label small fw-bold mb-1 text-dark">Waktu Keluar</label>
+              <input type="datetime-local" id="edit-log-keluar" class="form-control" value="${dataLog.iso_keluar}">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-bold mb-1 text-dark">Waktu Masuk</label>
+              <input type="datetime-local" id="edit-log-masuk" class="form-control" value="${dataLog.iso_masuk}">
+            </div>
+          </div>
+          
+          <label class="form-label small fw-bold mb-1 text-dark">Customer</label>
+          <input type="text" id="edit-log-cust" class="form-control mb-3" value="${dataLog.customer}">
+          
+          <label class="form-label small fw-bold mb-1 text-dark">Lokasi Tujuan</label>
+          <input type="text" id="edit-log-lokasi" class="form-control mb-2" value="${dataLog.lokasi}">
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-save me-1"></i> Simpan Koreksi',
+      cancelButtonText: "Batal",
+      focusConfirm: false,
+      customClass: { confirmButton: "btn btn-primary-saas px-4", cancelButton: "btn btn-light border px-4" },
+      preConfirm: () => {
+        // Kita format ulang tanggal dari datetime-local (T) menjadi standar teks yang bisa dibaca backend
+        let tglKeluar = document.getElementById("edit-log-keluar").value;
+        let tglMasuk = document.getElementById("edit-log-masuk").value;
+
+        return {
+          status: document.getElementById("edit-log-status").value,
+          st: document.getElementById("edit-log-st").value,
+          waktuKeluar: tglKeluar ? tglKeluar.replace("T", " ") + ":00" : "",
+          waktuMasuk: tglMasuk ? tglMasuk.replace("T", " ") + ":00" : "",
+          customer: document.getElementById("edit-log-cust").value.toUpperCase(),
+          lokasi: document.getElementById("edit-log-lokasi").value,
+        };
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({ title: "Menyimpan & Menghitung Ulang...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res.success) {
+              Swal.fire("Sukses!", res.pesan, "success");
+              lihatRekapKaryawanAdmin(); // Render ulang tabel
+            } else {
+              Swal.fire("Gagal", res.pesan, "error");
+            }
+          })
+          .simpanKoreksiLog(idTransaksi, result.value);
+      }
+    });
+  }
+
+  // ===================================================================================
+  // PERBAIKAN FUNGSI: BONGKAR BRANKAS ARSIP KARYAWAN (HRD)
+  // ===================================================================================
+  function lihatArsipKaryawanAdmin() {
+    let nrpp = document.getElementById("adminSelectKaryawanArsip").value;
+    if (!nrpp) return Swal.fire("Oops", "Pilih karyawan terlebih dahulu", "warning");
+
+    document.getElementById("adminRekapArsipContainer").innerHTML =
+      '<div class="text-center py-5"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary mb-3"></i><br><span class="fw-bold text-muted">Membongkar Brankas Arsip...</span></div>';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        let html = "";
+        const kunciBulan = Object.keys(res.arsipUPD);
+
+        // 1. Jika Arsip Kosong
+        if (kunciBulan.length === 0) {
+          html =
+            '<div class="alert bg-light border text-center text-muted py-5 shadow-sm" style="border-radius: var(--radius-card);"><i class="fa-solid fa-folder-open fa-2x mb-2 text-dark opacity-50"></i><br>Belum ada data arsip perjalanan untuk karyawan ini.</div>';
+        }
+        // 2. Jika Arsip Ada, Render Berdasarkan Bulan
+        else {
+          kunciBulan.forEach((monthYear) => {
+            let parts = monthYear.split("-");
+            let namaBulan = getNamaBulan(parts[1]);
+
+            html += `<div class="card card-form border-0 mb-4 shadow-sm border-warning" style="border-top: 4px solid #f59e0b !important;">
+              <div class="card-header bg-white text-dark fw-bold border-bottom py-3">
+                 <i class="fa-solid fa-box-archive text-warning me-2"></i> ARSIP: ${namaBulan.toUpperCase()} ${parts[0]}
+              </div>
+              <div class="card-body p-3">`;
+
+            // --- TABEL LOG PERJALANAN (BULAN TERSEBUT) ---
+            html += `<div class="d-flex justify-content-between align-items-center mb-2">
+                       <h6 class="text-dark fw-bold mb-0" style="font-size: 0.9rem;"><i class="fa-solid fa-list-ul text-secondary me-1"></i> Rincian Log Perjalanan</h6>
+                       <button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="cetakLogHRD('${nrpp}', '${monthYear}')"><i class="fa-solid fa-print me-1"></i> Cetak Log</button>
+                     </div>
+                     <div class="table-responsive shadow-sm mb-4" style="border-radius: var(--radius-input); border: 1px solid var(--card-border);">
+                      <table class="table table-sm table-hover align-middle mb-0 text-center" style="font-size: 0.8rem;">
+                        <thead class="table-light">
+                          <tr><th>ST</th><th>Waktu Keluar</th><th>Waktu Masuk</th><th>Customer</th><th>Durasi</th><th>UPD</th></tr>
+                        </thead>
+                        <tbody>`;
+
+            let logData = res.arsipLog[monthYear];
+            if (!logData || logData.length === 0) {
+              html += `<tr><td colspan="6" class="text-center py-3 text-muted">Tidak ada rincian log.</td></tr>`;
+            } else {
+              logData.forEach((row) => {
+                html += `<tr>
+                          <td><span class="badge bg-light text-dark border">${row.st}</span></td>
+                          <td>${row.tgl_keluar}</td>
+                          <td>${row.tgl_masuk}</td>
+                          <td class="text-start text-truncate" style="max-width: 150px;" title="${row.customer}">${row.customer}</td>
+                          <td>${row.durasi}</td>
+                          <td class="text-success fw-bold">${row.upd}</td>
+                         </tr>`;
+              });
+            }
+            html += `</tbody></table></div>`;
+
+            // --- LIST PENDAPATAN UPD & TOMBOL CETAK PDF ---
+            html += `<h6 class="text-dark fw-bold mb-2" style="font-size: 0.9rem;"><i class="fa-solid fa-file-invoice-dollar text-success me-1"></i> Rekap Pendapatan UPD</h6>
+                     <div class="list-group shadow-sm" style="border-radius: var(--radius-input);">`;
+
+            let stData = res.arsipUPD[monthYear];
+            for (let st in stData) {
+              html += `<div class="list-group-item d-flex justify-content-between align-items-center border-0 border-bottom bg-light py-2">
+                        <div><strong class="text-dark">${st}</strong><br><small class="text-muted">Total: <span class="fw-bold text-success">Rp ${stData[st].total.toLocaleString("id-ID")}</span></small></div>
+                        <button class="btn btn-sm btn-primary px-3 shadow-sm" style="border-radius: 8px;" onclick="cetakLaporanPDF('${st}', '${nrpp}')"><i class="fa-solid fa-file-pdf"></i></button>
+                       </div>`;
+            }
+            html += `</div>`;
+            html += `</div></div>`; // Penutup Card Bulan
+          });
+        }
+
+        // Render semua html yang sudah dirakit ke kontainer
+        document.getElementById("adminRekapArsipContainer").innerHTML = html;
+      })
+      .getArsipKaryawanLengkap(nrpp);
+  }
+
+  function loadAdminArsipDashboard() {
+    // Dropdown sudah dimuat di loadDropdownKaryawanHRD, fungsi ini sekadar penopang agar tidak crash saat menu diklik.
+  }
+
+  // ===================================================================================
+  // LOGIKA NAVIGASI SUB-MENU CARDS HRD & RENDER DATA PENDING
+  // ===================================================================================
+
+  function pindahTabHRD(tabName) {
+    // 1. Sembunyikan semua konten tab
+    const tabs = ["dinas", "approval", "rekap", "tarif"];
+    tabs.forEach((t) => {
+      document.getElementById(`tab-hrd-${t}`).style.display = "none";
+      document.getElementById(`card-hrd-${t}`).classList.remove("border-primary", "border-warning", "border-success", "border-info");
+    });
+
+    // 2. Tampilkan tab yang dipilih dan beri warna border pada Card-nya
+    document.getElementById(`tab-hrd-${tabName}`).style.display = "block";
+
+    if (tabName === "dinas") {
+      document.getElementById(`card-hrd-dinas`).classList.add("border-primary");
+    } else if (tabName === "approval") {
+      document.getElementById(`card-hrd-approval`).classList.add("border-warning");
+      loadPendingApprovals(); // Tarik data saat tab dibuka
+    } else if (tabName === "rekap") {
+      document.getElementById(`card-hrd-rekap`).classList.add("border-success");
+    } else if (tabName === "tarif") {
+      document.getElementById(`card-hrd-tarif`).classList.add("border-info");
+    }
+  }
+
+  // ===================================================================================
+  // PERBAIKAN FUNGSI: RENDER DATA APPROVAL & UPDATE ICON BADGE
+  // ===================================================================================
+  function loadPendingApprovals(silent = false) {
+    const tbody = document.getElementById("tableAdminPendingApproval");
+
+    // Jika user mengklik Tab (bukan radar background), tampilkan efek loading
+    if (!silent && tbody) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin text-warning fa-2x"></i><br>Mencari antrean...</td></tr>';
+    }
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        globalPendingApprovalData = res;
+        // 1. UPDATE ICON BADGE (TOTAL BUTUH APPROVE) SECARA REAL-TIME
+        const badge = document.getElementById("badge-approval-count");
+        if (badge) {
+          if (res.length > 0) {
+            badge.style.display = "inline-block";
+            badge.innerText = res.length; // Masukkan total angka
+          } else {
+            badge.style.display = "none"; // Sembunyikan ikon jika 0
+          }
+        }
+
+        // Jika fungsi dipanggil hanya untuk update angka Badge, hentikan proses di sini
+        if (silent) return;
+
+        // 2. RENDER TABEL MENGGUNAKAN DOM MURNI
+        if (tbody) tbody.innerHTML = "";
+
+        if (res.length === 0) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td colspan="4" class="text-center py-4 text-muted"><i class="fa-solid fa-mug-hot fa-2x mb-2 text-success"></i><br>Kerja bagus! Tidak ada antrean approval saat ini.</td>`;
+          if (tbody) tbody.appendChild(tr);
+          return;
+        }
+
+        res.forEach((item) => {
+          const tr = document.createElement("tr");
+
+          const tdNama = document.createElement("td");
+          tdNama.innerHTML = `<strong class="text-dark">${item.nama}</strong>`;
+          tr.appendChild(tdNama);
+
+          const tdInfo = document.createElement("td");
+          tdInfo.className = "text-start";
+          tdInfo.innerHTML = `<span class="badge bg-light text-dark border">${item.st}</span><br><small class="text-muted text-truncate d-inline-block" style="max-width: 150px;">${item.lokasi}</small>`;
+          tr.appendChild(tdInfo);
+
+          const tdWaktu = document.createElement("td");
+          tdWaktu.innerHTML = `<small class="fw-bold text-danger">${item.waktuKeluar}</small><br><small class="fw-bold text-success">${item.waktuMasuk}</small>`;
+          tr.appendChild(tdWaktu);
+
+          const tdAksi = document.createElement("td");
+          tdAksi.innerHTML = `
+            <button class="btn btn-sm btn-light border text-primary shadow-sm me-1" onclick="bukaModalKoreksiLogHRD('${item.id}')" title="Koreksi"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn btn-sm btn-success shadow-sm" onclick="aksiApproveLogHRD('${item.id}'); setTimeout(loadPendingApprovals, 2000);" title="Approve"><i class="fa-solid fa-check"></i></button>
+          `;
+          tr.appendChild(tdAksi);
+
+          if (tbody) tbody.appendChild(tr);
+        });
+      })
+      .getPendingApprovalHRD();
+  }
+
+  // ===================================================================================
+  // FUNGSI PRINT KHUSUS HRD (MENCETAK DATA KARYAWAN LAIN)
+  // ===================================================================================
+  function cetakLogHRD(nrppTarget, periodKey) {
+    Swal.fire({
+      title: "Menyiapkan Dokumen...",
+      text: "Sedang membuat PDF dari Server",
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res.success) {
+          Swal.close();
+
+          // --- LOGIKA NAMA FILE DINAMIS ---
+          let bulan = periodKey;
+          if (bulan === "CURRENT") {
+            let d = new Date();
+            bulan = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+          }
+          // Format: LOG_HRD-YYYY-MM-NRPP.pdf
+          let namaFile = `LOG_HRD-${bulan}-${nrppTarget}.pdf`;
+
+          const linkSource = "data:application/pdf;base64," + res.base64;
+          const downloadLink = document.createElement("a");
+          downloadLink.href = linkSource;
+          downloadLink.download = namaFile;
+          downloadLink.click();
+        } else {
+          Swal.fire("Gagal Cetak", res.pesan, "error");
+        }
+      })
+      .generateLogPDFBase64(nrppTarget, "ALL", periodKey);
+  }
+
+  // ===================================================================================
+  // MASTER FUNGSI DOWNLOAD PDF (MENGEMBALIKAN MODAL PILIHAN ST + FORCE DOWNLOAD)
+  // ===================================================================================
+
+  // 1. MODAL CETAK HRD (Bisa pilih ST atau ALL)
+  function cetakLogHRD(nrppTarget, periodKey) {
+    let uniqueST = [];
+    if (periodKey === "CURRENT" && typeof globalAdminLogData !== "undefined") {
+      uniqueST = [...new Set(globalAdminLogData.map((item) => item.st))];
+    }
+
+    let optionsHtml = '<option value="ALL">Semua Nomor ST (ALL)</option>';
+    uniqueST.forEach((st) => {
+      if (st && st !== "TANPA-ST" && st !== "") {
+        optionsHtml += `<option value="${st}">${st}</option>`;
+      }
+    });
+
+    Swal.fire({
+      title: "Download Log HRD",
+      html: `
+        <div class="text-start mt-3">
+          <label class="form-label small fw-bold mb-1 text-dark">Pilih Filter Cetak:</label>
+          <select id="swal-select-st-hrd" class="form-select border-primary shadow-sm" style="border-radius: var(--radius-input);">
+            ${optionsHtml}
+          </select>
+        </div>
+      `,
+      icon: "info",
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-download me-1"></i> Download PDF',
+      cancelButtonText: "Batal",
+      preConfirm: () => {
+        return document.getElementById("swal-select-st-hrd").value;
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        eksekusiDownloadLog(nrppTarget, result.value, periodKey, "HRD");
+      }
+    });
+  }
+
+  // 2. MODAL CETAK USER (Bulan Berjalan)
+  function modalPilihanCetakLogUser() {
+    let uniqueST = typeof globalUserLogData !== "undefined" ? [...new Set(globalUserLogData.map((item) => item.st))] : [];
+    let optionsHtml = '<option value="ALL">Semua Nomor ST (ALL)</option>';
+    uniqueST.forEach((st) => {
+      if (st && st !== "TANPA-ST" && st !== "") {
+        optionsHtml += `<option value="${st}">${st}</option>`;
+      }
+    });
+
+    Swal.fire({
+      title: "Download Log Perjalanan",
+      html: `
+        <div class="text-start mt-3">
+          <label class="form-label small fw-bold mb-1 text-dark">Pilih Filter Cetak:</label>
+          <select id="swal-select-st-user" class="form-select border-primary shadow-sm" style="border-radius: var(--radius-input);">
+            ${optionsHtml}
+          </select>
+        </div>
+      `,
+      icon: "info",
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-download me-1"></i> Download PDF',
+      cancelButtonText: "Batal",
+      preConfirm: () => {
+        return document.getElementById("swal-select-st-user").value;
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        eksekusiDownloadLog(currentUser.nrpp, result.value, "CURRENT", "USER");
+      }
+    });
+  }
+
+  // 3. MODAL CETAK ARSIP USER (Bulan Sebelumnya)
+  function modalPilihanCetakLogArsipUser(monthYear) {
+    let arsipData = typeof globalUserArsipLogData !== "undefined" && globalUserArsipLogData[monthYear] ? globalUserArsipLogData[monthYear] : [];
+    let uniqueST = [...new Set(arsipData.map((item) => item.st))];
+
+    let optionsHtml = '<option value="ALL">Semua Nomor ST (ALL)</option>';
+    uniqueST.forEach((st) => {
+      if (st && st !== "TANPA-ST" && st !== "") {
+        optionsHtml += `<option value="${st}">${st}</option>`;
+      }
+    });
+
+    Swal.fire({
+      title: "Download Arsip Log",
+      html: `
+        <div class="text-start mt-2">
+          <p class="text-muted small mb-3">Periode: <b>${monthYear}</b></p>
+          <label class="form-label small fw-bold mb-1 text-dark">Pilih Filter Cetak:</label>
+          <select id="swal-select-st-arsip" class="form-select border-primary shadow-sm" style="border-radius: var(--radius-input);">
+            ${optionsHtml}
+          </select>
+        </div>
+      `,
+      icon: "info",
+      showCancelButton: true,
+      confirmButtonText: '<i class="fa-solid fa-download me-1"></i> Download PDF',
+      cancelButtonText: "Batal",
+      preConfirm: () => {
+        return document.getElementById("swal-select-st-arsip").value;
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        eksekusiDownloadLog(currentUser.nrpp, result.value, monthYear, "ARSIP");
+      }
+    });
+  }
+
+  // 4. MESIN DOWNLOADER LOG PERJALANAN (Otomatis Penamaan File)
+  function eksekusiDownloadLog(nrppTarget, st, periodKey, role) {
+    Swal.fire({ title: "Menyiapkan Dokumen...", text: "Sedang menarik data dari server...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res.success) {
+          Swal.close();
+          let bulan = periodKey;
+          if (bulan === "CURRENT") {
+            let d = new Date();
+            bulan = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+          }
+          let safeST = st === "ALL" ? "ALL" : st.replace(/[^a-zA-Z0-9]/g, "_");
+          let namaFile = `LOG_${role}_${bulan}_${safeST}.pdf`;
+
+          const linkSource = "data:application/pdf;base64," + res.base64;
+          const downloadLink = document.createElement("a");
+          downloadLink.href = linkSource;
+          downloadLink.download = namaFile;
+          downloadLink.click();
+        } else {
+          Swal.fire("Gagal Download", res.pesan, "error");
+        }
+      })
+      .generateLogPDFBase64(nrppTarget, st, periodKey);
+  }
+
+  // 5. MESIN DOWNLOADER LAPORAN UPD (Langsung Download Per ST)
+  function cetakLaporanPDF(st, nrpp) {
+    if (!nrpp) nrpp = currentUser.nrpp;
+
+    Swal.fire({ title: "Menyiapkan Dokumen...", text: "Membuat PDF Laporan UPD...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res.success) {
+          Swal.close();
+          let d = new Date();
+          let bulan = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+          let safeST = st.replace(/[^a-zA-Z0-9]/g, "_");
+          let namaFile = `LAPORAN_UPD_${bulan}_${safeST}.pdf`;
+
+          const linkSource = "data:application/pdf;base64," + res.base64;
+          const downloadLink = document.createElement("a");
+          downloadLink.href = linkSource;
+          downloadLink.download = namaFile;
+          downloadLink.click();
+        } else {
+          Swal.fire("Gagal Download", res.pesan, "error");
+        }
+      })
+      .generatePDFBase64(nrpp, st);
   }
 </script>

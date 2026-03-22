@@ -12,7 +12,6 @@
         margin-left: 0.5cm; /* Diubah agar ada jarak dari tepi kertas */
       }
 
-
       body {
         font-family: Arial, sans-serif;
         font-size: 8pt; /* UKURAN HURUF DIKECILKAN MENJADI 8pt */
@@ -21,7 +20,6 @@
         padding: 0;
       }
 
-
       .judul {
         text-align: center;
         font-size: 11pt; /* Judul disesuaikan sedikit agar proporsional */
@@ -29,7 +27,6 @@
         margin-bottom: 8px;
         margin-top: 5px;
       }
-
 
       /* KOP SURAT / HEADER TABLE - PRESISI 8 KOLOM */
       table {
@@ -48,7 +45,6 @@
         white-space: nowrap;
       }
 
-
       /* TABEL DATA PERJALANAN - PRESISI 12 KOLOM */
       .table-data td,
       .table-data th {
@@ -61,7 +57,6 @@
         text-align: center;
         font-weight: normal;
       }
-
 
       /* TABEL TANDA TANGAN */
       .table-ttd {
@@ -79,7 +74,6 @@
         font-weight: normal;
       }
 
-
       /* UTILITIES */
       .text-center {
         text-align: center;
@@ -94,7 +88,6 @@
   </head>
   <body>
     <div class="judul">LAPORAN DEKLARASI PERJALANAN DINAS</div>
-
 
     <table class="table-kop">
       <tr>
@@ -145,7 +138,6 @@
       </tr>
     </table>
 
-
     <table class="table-data">
       <thead>
         <tr>
@@ -173,29 +165,14 @@
           <td></td>
           <td></td>
           <td></td>
-          <td class="text-right">
-            <?= data.trips[i].upd_tlm >
-            0 ? data.trips[i].upd_tlm.toLocaleString('id-ID') : '0' ?>
-          </td>
+          <td class="text-right"><?= data.trips[i].upd_tlm > 0 ? data.trips[i].upd_tlm.toLocaleString('id-ID') : '0' ?></td>
           <td class="text-right"></td>
-          <td class="text-right">
-            <?= data.trips[i].makan_siang >
-            0 ? data.trips[i].makan_siang.toLocaleString('id-ID') : '0' ?>
-          </td>
+          <td class="text-right"><?= data.trips[i].makan_siang > 0 ? data.trips[i].makan_siang.toLocaleString('id-ID') : '0' ?></td>
           <td class="text-right"></td>
-          <td class="text-right">
-            <?= data.trips[i].makan_total >
-            0 ? data.trips[i].makan_total.toLocaleString('id-ID') : '0' ?>
-          </td>
+          <td class="text-right"><?= data.trips[i].makan_total > 0 ? data.trips[i].makan_total.toLocaleString('id-ID') : '0' ?></td>
           <td></td>
-          <td class="text-right">
-            <?= data.trips[i].lain_lain >
-            0 ? data.trips[i].lain_lain.toLocaleString('id-ID') : '0' ?>
-          </td>
-          <td class="text-right">
-            <?= data.trips[i].total >
-            0 ? data.trips[i].total.toLocaleString('id-ID') : '0' ?>
-          </td>
+          <td class="text-right"><?= data.trips[i].lain_lain > 0 ? data.trips[i].lain_lain.toLocaleString('id-ID') : '0' ?></td>
+          <td class="text-right"><?= data.trips[i].total > 0 ? data.trips[i].total.toLocaleString('id-ID') : '0' ?></td>
         </tr>
         <? } ?> <? for (var j = totalBaris; j < batasBarisTetap; j++) { ?>
         <tr>
@@ -213,7 +190,6 @@
           <td></td>
         </tr>
         <? } ?>
-
 
         <tr>
           <td colspan="9" rowspan="3" style="border: none; border-top: 1px solid #000; text-align: left; vertical-align: top; padding-top: 6px">
@@ -234,7 +210,6 @@
         </tr>
       </tbody>
     </table>
-
 
     <table class="table-ttd">
       <tr>

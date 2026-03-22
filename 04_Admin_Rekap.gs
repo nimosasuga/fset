@@ -310,21 +310,80 @@ function getArsipKaryawanLengkap(nrpp) {
 // FUNGSI BARU: RADAR NOTIFIKASI REAL-TIME ABSEN POS (HRD)
 // ===================================================================================
 
-function cekNotifikasiAbsenBaruHRD(jumlahDataLokal) {
+// ===================================================================================
+// FUNGSI UPDATE: RADAR NOTIFIKASI REAL-TIME ABSEN POS (HRD)
+// ===================================================================================
+
+function cekNotifikasiAbsenBaruHRD(stateLokal) {
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Log_Perjalanan");
-    if (!sheet) return { hasNew: false, totalBaru: jumlahDataLokal };
+    if (!sheet) return { hasChanged: false, newState: stateLokal };
 
-    // Hitung total baris saat ini (dikurangi 1 baris header)
-    const totalDataServer = sheet.getLastRow() - 1;
+    const totalBaris = sheet.getLastRow();
 
-    // Jika data di server (Sheets) lebih banyak dari data di layar HRD, ada absen baru!
-    if (totalDataServer > jumlahDataLokal) {
-      return { hasNew: true, totalBaru: totalDataServer };
+    // Tarik data saat ini dari fungsi dashboard yang sudah ada
+    const currentData = getAdminDashboardData();
+    const totalOut = currentData.totalOut;
+
+    // KUNCI: Buat "State Signature" (Gabungan jumlah baris & jumlah orang di luar)
+    const currentState = totalBaris + "_" + totalOut;
+
+    // Jika State berubah (ada yang keluar ATAU ada yang kembali)
+    if (currentState !== stateLokal) {
+      // Kita kirimkan data terbarunya sekalian ke Frontend (Menghemat 1x pemanggilan server!)
+      return { hasChanged: true, newState: currentState, data: currentData };
     }
 
-    return { hasNew: false, totalBaru: totalDataServer };
+    return { hasChanged: false, newState: currentState };
   } catch (e) {
-    return { hasNew: false, totalBaru: jumlahDataLokal };
+    return { hasChanged: false, newState: stateLokal };
+  }
+}
+
+/// ===================================================================================
+// PERBAIKAN FUNGSI: MENARIK DATA YANG BUTUH APPROVAL (DENGAN DATA LENGKAP UNTUK MODAL)
+// ===================================================================================
+function getPendingApprovalHRD() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Log_Perjalanan");
+    if (!sheet) return [];
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return [];
+
+    let pendingList = [];
+
+    // Looping dari bawah ke atas agar data terbaru muncul duluan
+    for (let i = data.length - 1; i >= 1; i--) {
+      let row = data[i];
+
+      let status = String(row[12] || "")
+        .trim()
+        .toUpperCase();
+      let validasi = String(row[14] || "")
+        .trim()
+        .toUpperCase();
+
+      if (status === "IN" && validasi !== "APPROVED") {
+        let tglKeluarObj = row[1] ? new Date(row[1]) : null;
+        let tglMasukObj = row[2] ? new Date(row[2]) : null;
+
+        pendingList.push({
+          id: row[0],
+          nama: row[4],
+          st: row[5],
+          customer: row[8], // Tambahan data untuk modal koreksi
+          lokasi: row[9],
+          status: status, // Tambahan data untuk modal koreksi
+          iso_keluar: tglKeluarObj ? Utilities.formatDate(tglKeluarObj, "GMT+7", "yyyy-MM-dd'T'HH:mm") : "", // Tambahan untuk modal
+          iso_masuk: tglMasukObj ? Utilities.formatDate(tglMasukObj, "GMT+7", "yyyy-MM-dd'T'HH:mm") : "", // Tambahan untuk modal
+          waktuKeluar: tglKeluarObj ? Utilities.formatDate(tglKeluarObj, "GMT+7", "dd/MM HH:mm") : "-",
+          waktuMasuk: tglMasukObj ? Utilities.formatDate(tglMasukObj, "GMT+7", "dd/MM HH:mm") : "-",
+        });
+      }
+    }
+    return pendingList;
+  } catch (e) {
+    return [];
   }
 }

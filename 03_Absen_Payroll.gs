@@ -86,25 +86,20 @@ function prosesDataScan(data) {
   const dataLog = sheet.getDataRange().getValues();
   const waktuSekarang = new Date();
 
-  const todayStr = Utilities.formatDate(waktuSekarang, "GMT+7", "yyyy-MM-dd");
-  let sudahDinasHariIni = false;
-
-  for (let i = dataLog.length - 1; i >= 1; i--) {
-    if (String(dataLog[i][3]) === nrppString) {
-      let tglKeluar = parseSafeDate(dataLog[i][1]);
-      let logDateStr = Utilities.formatDate(tglKeluar, "GMT+7", "yyyy-MM-dd");
-
-      if (logDateStr === todayStr) {
-        sudahDinasHariIni = true;
-        break;
-      }
-    }
-  }
-
   if (data.tipe_scan === "KELUAR") {
-    if (sudahDinasHariIni && nrppString !== GOD_MODE_NRPP) {
-      return { success: false, pesan: "Batas 1 Kali Sehari!<br>Anda sudah melakukan perjalanan dinas hari ini." };
+    // =================================================================
+    // BLOK VALIDASI MUTLAK: 1 HARI = 1 TRIP (TERMASUK GOD MODE)
+    // =================================================================
+    let apakahSudahDinasHariIni = cekBatasHarianDinas(nrppString);
+
+    if (apakahSudahDinasHariIni) {
+      // Tolak mentah-mentah jika sudah dinas hari ini
+      return {
+        success: false,
+        pesan: "AKSES DITOLAK!<br>Anda sudah melakukan perjalanan dinas hari ini. Batas maksimal adalah 1 kali sehari.",
+      };
     }
+    // =================================================================
 
     const idTransaksi = "TRP-" + data.nrpp + "-" + Utilities.formatDate(waktuSekarang, "GMT+7", "yyMMddHHmm");
     const arrKendaraan = data.kendaraan.split("|");
@@ -138,11 +133,16 @@ function prosesDataScan(data) {
 
         sheet.getRange(baris, 3).setValue(waktuSekarang);
         sheet.getRange(baris, 3).setNumberFormat("dd/MM/yyyy HH:mm:ss");
-        
-        // PERBAIKAN: Set Format Angka Desimal Mutlak
-        sheet.getRange(baris, 11).setValue(durasiJam);
-        sheet.getRange(baris, 11).setNumberFormat("0.00");
-        
+
+        // ====================================================================
+        // PERBAIKAN: Memaksa format titik (.) dengan menjadikannya Plain Text
+        // ====================================================================
+        let durasiTeks = durasiJam.toFixed(2); // Menghasilkan format string dengan titik, misal "15.29"
+
+        sheet.getRange(baris, 11).setNumberFormat("@"); // Set sel menjadi Plain Text murni terlebih dahulu
+        sheet.getRange(baris, 11).setValue(durasiTeks); // Masukkan nilai teks ber-titik
+        // ====================================================================
+
         sheet.getRange(baris, 12).setValue(updTotal);
         sheet.getRange(baris, 13).setValue("IN");
         sheet.getRange(baris, 15).setValue("PENDING");
@@ -150,5 +150,52 @@ function prosesDataScan(data) {
         return { success: true, pesan: `Sukses Lapor Masuk!<br>Durasi: ${durasiJam.toFixed(2)} Jam<br>UPD: Rp ${updTotal.toLocaleString("id-ID")}` };
       }
     }
+  }
+}
+
+// ===================================================================================
+// FUNGSI SECURITY: VALIDASI BATAS MAKSIMAL 1X PERJALANAN PER HARI
+// ===================================================================================
+function cekBatasHarianDinas(nrpp) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Log_Perjalanan");
+    if (!sheet) return false;
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return false; // Belum ada data sama sekali, izinkan!
+
+    const headers = data[0];
+    const idxNRPP = headers.indexOf("NRPP");
+    const idxKeluar = headers.indexOf("Waktu_Keluar");
+
+    if (idxNRPP === -1 || idxKeluar === -1) return false;
+
+    // Ambil tanggal hari ini (Format: YYYY-MM-DD)
+    const hariIni = Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd");
+
+    // Looping dari bawah (data paling baru) ke atas
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][idxNRPP]).trim() === String(nrpp).trim()) {
+        let wKeluar = data[i][idxKeluar];
+
+        // Pastikan format wKeluar valid dan merupakan tanggal
+        if (wKeluar && wKeluar instanceof Date) {
+          let tglKeluarLog = Utilities.formatDate(wKeluar, "GMT+7", "yyyy-MM-dd");
+
+          // JIKA DIA SUDAH PERNAH SCAN KELUAR HARI INI...
+          if (tglKeluarLog === hariIni) {
+            return true; // TRUE = GEMBOK AKTIF (Tolak proses scan OUT selanjutnya!)
+          }
+        }
+
+        // Karena kita hanya peduli pada histori perjalanan TERAKHIRNYA,
+        // kita bisa langsung hentikan pencarian agar server tidak lelah.
+        break;
+      }
+    }
+
+    return false; // FALSE = GEMBOK TERBUKA (Belum pernah dinas hari ini)
+  } catch (e) {
+    return false; // Jika error, anggap lolos agar operasional tidak mati total
   }
 }
