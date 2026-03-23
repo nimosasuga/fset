@@ -131,17 +131,13 @@ function getIzinKendaraanData() {
   }
 }
 
-// 2. FUNGSI SIMPAN PENGELUARAN DARI USER (TAMBAH KM AKHIR)
+// ===================================================================================
+// FUNGSI 1: SIMPAN PENGELUARAN USER (DIPERBAIKI SALDO-NYA)
+// ===================================================================================
 function simpanPengeluaranKendaraan(idIzin, biaya) {
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Izin_Kendaraan");
     const data = sheet.getDataRange().getValues();
-
-    // Pastikan Header dibuat sampai Kolom T (KM_AKHIR)
-    if (data[0].length < 20) {
-      sheet.getRange("M1:T1").setValues([["BBM", "TOL", "PARKIR", "LAIN_LAIN", "TOTAL_BIAYA", "TOP_UP_FLEET", "SISA_SALDO", "KM_AKHIR"]]);
-      sheet.getRange("M1:T1").setFontWeight("bold").setBackground("#f8fafc");
-    }
 
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === idIzin) {
@@ -149,19 +145,20 @@ function simpanPengeluaranKendaraan(idIzin, biaya) {
         let valTol = Number(biaya.tol) || 0;
         let valParkir = Number(biaya.parkir) || 0;
         let valLain = Number(biaya.lain) || 0;
-        let kmAkhir = biaya.kmAkhir || ""; // Data KM Akhir dari User
+        let kmAkhir = biaya.kmAkhir || "";
 
         let total = valBbm + valTol + valParkir + valLain;
-        let valTopup = Number(data[i][17]) || 0;
-        let sisaSaldo = valTopup - total;
 
         sheet.getRange(i + 1, 13).setValue(valBbm);
         sheet.getRange(i + 1, 14).setValue(valTol);
         sheet.getRange(i + 1, 15).setValue(valParkir);
         sheet.getRange(i + 1, 16).setValue(valLain);
-        sheet.getRange(i + 1, 17).setValue(total);
-        sheet.getRange(i + 1, 19).setValue(sisaSaldo);
-        sheet.getRange(i + 1, 20).setValue(kmAkhir); // Simpan KM Akhir ke Kolom T
+        sheet.getRange(i + 1, 17).setValue(total); // Kolom Q
+        sheet.getRange(i + 1, 20).setValue(kmAkhir); // Kolom T
+
+        // PANGGIL KALKULATOR SALDO BERJALAN
+        let nomorFleet = String(data[i][10]).replace(/^'/, "").trim();
+        perbaruiSaldoSheet(nomorFleet);
 
         return { success: true, pesan: "Pengeluaran & KM Akhir berhasil disimpan!" };
       }
@@ -172,18 +169,14 @@ function simpanPengeluaranKendaraan(idIzin, biaya) {
   }
 }
 
-// 3. FUNGSI KOREKSI GA (EDIT FORM - TAMBAH KM AKHIR)
+// ===================================================================================
+// FUNGSI 2: KOREKSI DATA OLEH GA (DIPERBAIKI SALDO-NYA)
+// ===================================================================================
 function updateKoreksiIzinGA(idIzin, dataBaru) {
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Izin_Kendaraan");
     const data = sheet.getDataRange().getValues();
     let fleetTarget = "";
-
-    // Pastikan Header dibuat sampai Kolom T (KM_AKHIR)
-    if (data[0].length < 20) {
-      sheet.getRange("M1:T1").setValues([["BBM", "TOL", "PARKIR", "LAIN_LAIN", "TOTAL_BIAYA", "TOP_UP_FLEET", "SISA_SALDO", "KM_AKHIR"]]);
-      sheet.getRange("M1:T1").setFontWeight("bold").setBackground("#f8fafc");
-    }
 
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === idIzin) {
@@ -196,7 +189,7 @@ function updateKoreksiIzinGA(idIzin, dataBaru) {
         sheet.getRange(row, 7).setValue(dataBaru.customer.toUpperCase());
         sheet.getRange(row, 8).setValue(dataBaru.alamat);
         sheet.getRange(row, 9).setValue(dataBaru.departemen.toUpperCase());
-        sheet.getRange(row, 10).setValue(dataBaru.km); // KM Awal
+        sheet.getRange(row, 10).setValue(dataBaru.km);
         sheet.getRange(row, 11).setValue(fleetAman);
 
         let valBbm = parseFloat(dataBaru.bbm) || 0;
@@ -210,19 +203,63 @@ function updateKoreksiIzinGA(idIzin, dataBaru) {
         sheet.getRange(row, 14).setValue(valTol);
         sheet.getRange(row, 15).setValue(valParkir);
         sheet.getRange(row, 16).setValue(valLain);
-        sheet.getRange(row, 17).setValue(total);
-        sheet.getRange(row, 18).setValue(valTopup);
-        sheet.getRange(row, 20).setValue(dataBaru.kmAkhir || ""); // Koreksi KM Akhir
+        sheet.getRange(row, 17).setValue(total); // Kolom Q
+        sheet.getRange(row, 18).setValue(valTopup); // Kolom R
+        sheet.getRange(row, 20).setValue(dataBaru.kmAkhir || ""); // Kolom T
         break;
       }
     }
 
+    // PANGGIL KALKULATOR SALDO BERJALAN
     if (fleetTarget && fleetTarget !== "-") {
-      recalculateLedgerFleet(fleetTarget);
+      perbaruiSaldoSheet(fleetTarget);
     }
-    return { success: true, pesan: "Data terkoreksi & Mutasi diperbarui!" };
+    return { success: true, pesan: "Data terkoreksi & Saldo diperbarui!" };
   } catch (e) {
     return { success: false, pesan: e.toString() };
+  }
+}
+
+// ===================================================================================
+// FUNGSI 3: KALKULATOR SALDO BERJALAN (FUNGSI BARU)
+// ===================================================================================
+function perbaruiSaldoSheet(kartuFleetTarget) {
+  if (!kartuFleetTarget || kartuFleetTarget === "-") return;
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // 1. Tarik Saldo Sisa dari Bulan-Bulan Sebelumnya (Arsip) jika ada
+  let saldoBawaan = 0;
+  let arsipSheets = ss.getSheets().filter((s) => s.getName().startsWith("Arsip_Kendaraan_"));
+  for (let s of arsipSheets) {
+    let dataArsip = s.getDataRange().getValues();
+    for (let i = 1; i < dataArsip.length; i++) {
+      let f = String(dataArsip[i][10]).replace(/^'/, "").trim();
+      if (f === kartuFleetTarget) {
+        let biaya = parseFloat(dataArsip[i][16]) || 0;
+        let topup = parseFloat(dataArsip[i][17]) || 0;
+        saldoBawaan = saldoBawaan + topup - biaya;
+      }
+    }
+  }
+
+  // 2. Hitung Ulang Saldo Berjalan di Sheet Aktif dari atas ke bawah
+  const sheet = ss.getSheetByName("Izin_Kendaraan");
+  const data = sheet.getDataRange().getValues();
+  let saldoBerjalan = saldoBawaan;
+
+  for (let i = 1; i < data.length; i++) {
+    let f = String(data[i][10]).replace(/^'/, "").trim(); // Cek kecocokan Kartu Fleet
+    if (f === kartuFleetTarget) {
+      let biaya = parseFloat(data[i][16]) || 0;
+      let topup = parseFloat(data[i][17]) || 0;
+
+      // Tambahkan saldo dengan Top Up, lalu kurangi dengan Biaya
+      saldoBerjalan = saldoBerjalan + topup - biaya;
+
+      // Tulis Saldo Berjalan yang benar ke Kolom S (Index 19)
+      sheet.getRange(i + 1, 19).setValue(saldoBerjalan);
+    }
   }
 }
 
@@ -284,59 +321,6 @@ function updateStatusIzinGA(idIzin, statusBaru) {
     }
   }
   return { success: false, pesan: "ID Izin tidak ditemukan di database." };
-}
-
-// --- FUNGSI UPDATE: GA MENGKOREKSI DATA, BIAYA, TOP UP & SALDO ---
-function updateKoreksiIzinGA(idIzin, dataBaru) {
-  try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Izin_Kendaraan");
-    const data = sheet.getDataRange().getValues();
-
-    // Pastikan Header lengkap sampai Kolom S
-    if (data[0].length < 19) {
-      sheet.getRange("M1:S1").setValues([["BBM", "TOL", "PARKIR", "LAIN_LAIN", "TOTAL_BIAYA", "TOP_UP_FLEET", "SISA_SALDO"]]);
-      sheet.getRange("M1:S1").setFontWeight("bold").setBackground("#f8fafc");
-    }
-
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === idIzin) {
-        const row = i + 1;
-
-        let fleetAman = dataBaru.fleet ? "'" + dataBaru.fleet : "";
-
-        sheet.getRange(row, 3).setValue(dataBaru.plat.toUpperCase());
-        sheet.getRange(row, 6).setValue(dataBaru.partner);
-        sheet.getRange(row, 7).setValue(dataBaru.customer.toUpperCase());
-        sheet.getRange(row, 8).setValue(dataBaru.alamat);
-        sheet.getRange(row, 9).setValue(dataBaru.departemen.toUpperCase());
-        sheet.getRange(row, 10).setValue(dataBaru.km);
-        sheet.getRange(row, 11).setValue(fleetAman);
-
-        let valBbm = parseFloat(dataBaru.bbm) || 0;
-        let valTol = parseFloat(dataBaru.tol) || 0;
-        let valParkir = parseFloat(dataBaru.parkir) || 0;
-        let valLain = parseFloat(dataBaru.lain) || 0;
-        let valTopup = parseFloat(dataBaru.topup) || 0;
-
-        // MATEMATIKA SALDO
-        let total = valBbm + valTol + valParkir + valLain;
-        let sisaSaldo = valTopup - total;
-
-        sheet.getRange(row, 13).setValue(valBbm);
-        sheet.getRange(row, 14).setValue(valTol);
-        sheet.getRange(row, 15).setValue(valParkir);
-        sheet.getRange(row, 16).setValue(valLain);
-        sheet.getRange(row, 17).setValue(total);
-        sheet.getRange(row, 18).setValue(valTopup);
-        sheet.getRange(row, 19).setValue(sisaSaldo); // Menulis Saldo ke Kolom S
-
-        return { success: true, pesan: "Data pengajuan & pengeluaran berhasil dikoreksi!" };
-      }
-    }
-    return { success: false, pesan: "Data Izin tidak ditemukan." };
-  } catch (e) {
-    return { success: false, pesan: e.toString() };
-  }
 }
 
 // --- UPDATE FUNGSI QUICK SAVE (Pemicu Mutasi) ---
@@ -635,97 +619,127 @@ function simpanDataMasterFleet(kartuFleet, merk, tipe, bbm, batasBiaya) {
   }
 }
 
-// Algoritma Cerdas Deteksi Anomali (Tahan Banting terhadap Sheet Kosong)
+// ===================================================================================
+// ALGORITMA CERDAS DETEKSI ANOMALI FINAL (BUG TANGGAL INDONESIA DIPERBAIKI)
+// ===================================================================================
 function getDataAnomaliRealtime() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 1. Tarik dan Amankan Sheet Master_Fleet
+    // 1. Tarik Kamus Batas Wajar Biaya dari Master Fleet
     const sheetFleet = ss.getSheetByName("Master_Fleet");
-    if (!sheetFleet) return []; // Jika sheet tidak ada, kembalikan kosong
-
-    // Cerdas: Jika header (baris 1) cuma ada 1 kolom, kita buatkan sisa kolomnya otomatis
-    const batasKolomFleet = sheetFleet.getLastColumn();
-    if (batasKolomFleet < 5) {
-      sheetFleet.getRange("A1:E1").setValues([["KARTU_FLEET", "MERK", "TIPE", "JENIS_BBM", "BATAS_BIAYA_PER_KM"]]);
-      sheetFleet.getRange("A1:E1").setFontWeight("bold").setBackground("#f8fafc");
-    }
+    if (!sheetFleet) return [];
 
     const dataFleet = sheetFleet.getDataRange().getValues();
     let mapBatasBiaya = {};
 
-    // Looping data fleet (mulai dari baris 2)
+    // Looping Master Fleet untuk mengambil batas biaya per Plat
     for (let i = 1; i < dataFleet.length; i++) {
-      if (!dataFleet[i][0]) continue; // Lewati jika plat kosong
-      let plat = String(dataFleet[i][0]).replace(/^'/, "").trim();
-      // Pastikan kolom ke-5 (index 4) ada datanya
-      let batas = dataFleet[i][4] ? parseFloat(dataFleet[i][4]) : 0;
-
-      if (plat && batas > 0) {
-        mapBatasBiaya[plat] = batas; // Menyimpan batas Rp/KM per plat
+      if (!dataFleet[i][0]) continue;
+      let nomorFleet = String(dataFleet[i][0]).replace(/['" ]/g, "").trim().toUpperCase();
+      let batas = parseFloat(dataFleet[i][4]) || 0;
+      if (nomorFleet && batas > 0) {
+        mapBatasBiaya[nomorFleet] = batas;
       }
     }
 
-    // 2. Tarik Data Izin GA
+    // 2. Tarik Data Izin Perjalanan
     const sheetIzin = ss.getSheetByName("Izin_Kendaraan");
     if (!sheetIzin) return [];
     const dataIzin = sheetIzin.getDataRange().getValues();
 
-    let hasilAnomali = [];
-
-    // Jika data izin masih kosong (cuma ada header), langsung laporkan "Aman!"
     if (dataIzin.length <= 1) return [];
 
-    let kmTracker = {};
+    let hasilAnomali = [];
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
 
-    // 3. Looping untuk menghitung selisih KM
-    for (let i = 1; i < dataIzin.length; i++) {
+    // 3. Looping data dari BAWAH ke ATAS
+    for (let i = dataIzin.length - 1; i >= 1; i--) {
       let row = dataIzin[i];
       if (!row[0]) continue;
 
-      let tglObj = new Date(row[1]);
-      let plat = String(row[2]).replace(/^'/, "").trim();
-      let user = row[4];
-      let kmSekarang = parseFloat(row[9]) || 0;
-      let biayaBbm = parseFloat(row[12]) || 0; // HANYA MENGAMBIL BIAYA BBM (Kolom M / Index 12)
+      // FIX FATAL: Menggunakan parseSafeDate agar format 21/03/2026 terbaca sempurna!
+      let tglObj = parseSafeDate(row[1]);
 
-      if (kmTracker[plat] !== undefined) {
-        let jarakTempuh = kmSekarang - kmTracker[plat].lastKm;
-
-        if (jarakTempuh > 0 && mapBatasBiaya[plat]) {
-          let prevBiaya = kmTracker[plat].lastBiaya; // Ini sekarang hanya berisi BBM
-          if (prevBiaya > 0) {
-            let rasio = prevBiaya / jarakTempuh;
-            let batasWajar = mapBatasBiaya[plat];
-
-            if (rasio > batasWajar) {
-              let prevTglObj = kmTracker[plat].lastTglObj;
-              if (prevTglObj.getMonth() === currentMonth && prevTglObj.getFullYear() === currentYear) {
-                hasilAnomali.push({
-                  tgl: Utilities.formatDate(prevTglObj, "GMT+7", "dd/MM/yyyy"),
-                  user: kmTracker[plat].lastUser,
-                  fleet: plat,
-                  rasioAktual: Math.round(rasio).toLocaleString("id-ID"),
-                  batasWajar: Math.round(batasWajar).toLocaleString("id-ID"),
-                });
-              }
-            }
-          }
-        }
+      // Filter hanya data bulan ini
+      if (tglObj.getMonth() !== currentMonth || tglObj.getFullYear() !== currentYear) {
+        continue;
       }
 
-      kmTracker[plat] = {
-        lastKm: kmSekarang,
-        lastBiaya: biayaBbm, // <-- SIMPAN HANYA BIAYA BBM SAJA
-        lastUser: user,
-        lastTglObj: tglObj,
-      };
+      let user = row[4];
+      let kmAwal = parseFloat(row[9]) || 0;
+      let kartuFleet = String(row[10]).replace(/['" ]/g, "").trim().toUpperCase();
+      let bbm = parseFloat(row[12]) || 0;
+      let kmAkhir = parseFloat(row[19]) || 0;
+
+      // LOGIKA ANOMALI
+      if (bbm > 0 && kmAkhir > kmAwal) {
+        let jarakTempuh = kmAkhir - kmAwal;
+        let rasio = bbm / jarakTempuh;
+        let batasWajar = mapBatasBiaya[kartuFleet];
+
+        // Jika rasio lebih besar dari batas wajar, MASUKKAN KE TABEL ANOMALI!
+        if (batasWajar && rasio > batasWajar) {
+          hasilAnomali.push({
+            tgl: Utilities.formatDate(tglObj, "GMT+7", "dd/MM/yyyy"),
+            user: user,
+            fleet: kartuFleet,
+            rasioAktual: Math.round(rasio).toLocaleString("id-ID"),
+            batasWajar: Math.round(batasWajar).toLocaleString("id-ID"),
+          });
+        }
+      }
     }
 
-    return hasilAnomali.reverse();
+    return hasilAnomali;
   } catch (e) {
     return [];
+  }
+}
+// ===================================================================================
+// BACKEND BARU: CRUD MASTER FLEET
+// ===================================================================================
+function getMasterFleetData() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Master_Fleet");
+    if (!sheet) return [];
+
+    const data = sheet.getDataRange().getValues();
+    let result = [];
+
+    // Mulai dari baris 2 (Lewati Header)
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0]) {
+        result.push({
+          plat: String(data[i][0]).replace(/^'/, "").trim(),
+          merk: data[i][1],
+          tipe: data[i][2],
+          bbm: data[i][3],
+          batas: parseFloat(data[i][4]) || 0,
+        });
+      }
+    }
+    return result;
+  } catch (e) {
+    return [];
+  }
+}
+
+function hapusMasterFleet(platTarget) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Master_Fleet");
+    const data = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      let platDb = String(data[i][0]).replace(/^'/, "").trim();
+      if (platDb === String(platTarget).trim()) {
+        sheet.deleteRow(i + 1); // Hapus baris persis di mana data ditemukan
+        return { success: true, pesan: "Armada " + platTarget + " berhasil dihapus!" };
+      }
+    }
+    return { success: false, pesan: "Data armada tidak ditemukan." };
+  } catch (e) {
+    return { success: false, pesan: e.toString() };
   }
 }

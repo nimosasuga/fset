@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-size: 12px;
+        color: #333;
+        margin: 0;
+        padding: 10px;
+      }
+      .header {
+        text-align: center;
+        border-bottom: 2px solid #0ea5e9;
+        padding-bottom: 15px;
+        margin-bottom: 25px;
+      }
+      .title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #0f172a;
+        margin-bottom: 5px;
+      }
+      .subtitle {
+        font-size: 12px;
+        color: #64748b;
+      }
+      .summary-box {
+        width: 100%;
+        margin-bottom: 25px;
+        border-collapse: collapse;
+      }
+      .summary-box td {
+        border: 1px solid #cbd5e1;
+        padding: 12px;
+        text-align: center;
+        width: 25%;
+        background-color: #f8fafc;
+      }
+      .summary-title {
+        font-size: 10px;
+        color: #64748b;
+        text-transform: uppercase;
+        font-weight: bold;
+      }
+      .summary-value {
+        font-size: 18px;
+        font-weight: bold;
+        color: #0f172a;
+        margin-top: 5px;
+      }
+      .section-title {
+        font-size: 14px;
+        font-weight: bold;
+        color: #1e293b;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 5px;
+      }
+      .chart-container {
+        text-align: center;
+        margin-bottom: 20px;
+        padding: 10px;
+        border: 1px dashed #cbd5e1;
+      }
+      .chart-img {
+        max-width: 100%;
+        max-height: 280px;
+        object-fit: contain;
+      }
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      .table th,
+      .table td {
+        border: 1px solid #cbd5e1;
+        padding: 8px 10px;
+        text-align: left;
+      }
+      .table th {
+        background-color: #f1f5f9;
+        font-size: 11px;
+        font-weight: bold;
+        color: #334155;
+      }
+      .text-center {
+        text-align: center;
+      }
+      .badge-danger {
+        color: #e11d48;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="title">LAPORAN ANALYTICS & FLEET HEALTH PROBASE</div>
+      <div class="subtitle">Waktu Cetak Dokumen: <?= data.waktuCetak ?></div>
+    </div>
+
+    <table class="summary-box">
+      <tr>
+        <td>
+          <div class="summary-title">Total Biaya Armada</div>
+          <div class="summary-value" style="color: #0ea5e9"><?= data.totalAll ?></div>
+        </td>
+        <td>
+          <div class="summary-title">BBM</div>
+          <div class="summary-value"><?= data.totalBBM ?></div>
+        </td>
+        <td>
+          <div class="summary-title">TOL</div>
+          <div class="summary-value"><?= data.totalTol ?></div>
+        </td>
+        <td>
+          <div class="summary-title">Parkir/Lain</div>
+          <div class="summary-value"><?= data.totalLain ?></div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="section-title">Visualisasi Grafik Pengeluaran per Armada</div>
+    <div class="chart-container">
+      <img src="<?!= data.chartImg ?>" class="chart-img" />
+    </div>
+
+    <div class="section-title">Laporan Deteksi Anomali Biaya</div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="text-center">Tanggal</th>
+          <th>Armada / Fleet</th>
+          <th>User Driver</th>
+          <th>Rasio Aktual vs Batas Wajar</th>
+          <th class="text-center">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <? if (data.anomali.length === 0) { ?>
+        <tr>
+          <td colspan="5" class="text-center" style="color: #10b981; font-weight: bold; padding: 20px">Kondisi Seluruh Armada Aman. Tidak ada kebocoran biaya.</td>
+        </tr>
+        <? } else { ?> <? for (var i = 0; i < data.anomali.length; i++) { ?>
+        <tr>
+          <td class="text-center"><?= data.anomali[i].tgl ?></td>
+          <td>
+            <strong><?= data.anomali[i].fleet ?></strong>
+          </td>
+          <td><?= data.anomali[i].user ?></td>
+          <td class="badge-danger">Aktual: Rp <?= data.anomali[i].rasioAktual ?> / KM<br /><span style="font-size: 10px; color: #64748b; font-weight: normal">Batas Wajar: Rp <?= data.anomali[i].batasWajar ?></span></td>
+          <td class="text-center badge-danger">BOROS</td>
+        </tr>
+        <? } ?> <? } ?>
+      </tbody>
+    </table>
+  </body>
+</html>

@@ -25,19 +25,26 @@
       .getIzinKendaraanData();
   }
 
+  // =======================================================================
+  // FUNGSI UPDATE: RADAR REAL-TIME (KEBAL PELURU & AUTO-RENDER)
+  // =======================================================================
   function nyalakanRadarNotifikasiGA() {
+    // Matikan radar lama jika ada, agar tidak dobel
     if (intervalRadarGA) clearInterval(intervalRadarGA);
 
+    // Radar akan mengecek ke server setiap 10 detik
     intervalRadarGA = setInterval(() => {
       cekAnomaliBackground();
 
       google.script.run
         .withSuccessHandler((res) => {
+          // Kalibrasi awal saat pertama kali buka halaman
           if (globalStateRadarGA === "") {
             globalStateRadarGA = res.newState;
             return;
           }
 
+          // JIKA TERDETEKSI PERUBAHAN DI SERVER
           if (res && res.hasChanged) {
             let isNewData = false;
             let prevRows = parseInt(globalStateRadarGA.split("_")[0]) || 0;
@@ -45,9 +52,10 @@
               isNewData = true;
             }
 
-            globalStateRadarGA = res.newState;
-            globalDataIzinGA = res.data;
+            globalStateRadarGA = res.newState; // Update memori state lokal
+            globalDataIzinGA = res.data; // Timpa memori data GA dengan yang terbaru
 
+            // Mainkan suara & pop-up HANYA jika ada PENGAJUAN BARU
             if (isNewData) {
               let audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
               audio.play().catch((e) => console.log("Auto-play ditahan browser"));
@@ -62,10 +70,13 @@
               });
             }
 
-            // PERBAIKAN: Terapkan Filter otomatis saat ada data baru dari radar
-            if (document.getElementById("gaSubApplications").style.display === "block") {
+            // PERBAIKAN BUG: Render paksa tanpa syarat!
+            // Tabel dan Dropdown akan selalu di-update di latar belakang secara otomatis.
+            if (typeof updateDropdownFilterAktif === "function" && typeof terapkanFilterAktifGA === "function") {
               updateDropdownFilterAktif(res.data);
               terapkanFilterAktifGA();
+            } else {
+              renderTabelIzinGA(res.data);
             }
           }
         })
@@ -79,6 +90,7 @@
     document.getElementById("gaSubApplications").style.display = "none";
     document.getElementById("gaSubAnalytics").style.display = "none";
     document.getElementById("gaSubArchive").style.display = "none";
+    document.getElementById("gaSubMaster").style.display = "none";
 
     // Sembunyikan juga halaman anomali jika ada
     let anomaliContainer = document.getElementById("gaSubAnomali");
@@ -89,56 +101,6 @@
     document.getElementById("gaMainMenu").style.display = "none";
     document.getElementById("gaSubApplications").style.display = "block";
     // Data tabel sudah dimuat saat loadAdminGADashboard
-  }
-
-  function bukaGAAnalitik() {
-    document.getElementById("gaMainMenu").style.display = "none";
-    document.getElementById("gaSubAnalytics").style.display = "block";
-
-    document.getElementById("gaTotalBulanIni").innerHTML = '<i class="fa-solid fa-spinner fa-spin text-muted fs-4"></i>';
-
-    google.script.run
-      .withSuccessHandler(function (res) {
-        if (res && res.success === false) {
-          return Swal.fire("Error Database", res.pesan, "error");
-        }
-
-        // 1. Render Angka Total Bulan Ini
-        document.getElementById("gaTotalBulanIni").innerText = "Rp " + (res.totalBulanIni || 0).toLocaleString("id-ID");
-        document.getElementById("gaBreakdownBBM").innerText = "Rp " + (res.bbmBulanIni || 0).toLocaleString("id-ID");
-        document.getElementById("gaBreakdownTol").innerText = "Rp " + (res.tolBulanIni || 0).toLocaleString("id-ID");
-        document.getElementById("gaBreakdownParkir").innerText = "Rp " + ((res.parkirBulanIni || 0) + (res.lainBulanIni || 0)).toLocaleString("id-ID");
-
-        // 2. Render Dropdown Filter Kartu Fleet
-        globalAnalyticsFleet = res.breakdownFleet || {};
-        let selectEl = document.getElementById("gaSelectFleet");
-
-        // Kosongkan opsi lama
-        selectEl.innerHTML = "";
-
-        // Opsi Default (Placeholder)
-        let optDefault = document.createElement("option");
-        optDefault.value = "";
-        optDefault.text = "Pilih Nomor Kartu Fleet...";
-        optDefault.disabled = true;
-        optDefault.selected = true;
-        selectEl.appendChild(optDefault);
-
-        // Isi opsi dari data Backend
-        if (res.listFleet && res.listFleet.length > 0) {
-          res.listFleet.forEach((f) => {
-            let opt = document.createElement("option");
-            opt.value = f;
-            opt.text = (f === "TANPA KARTU (CASH)" ? "💸 " : "💳 ") + f;
-            selectEl.appendChild(opt);
-          });
-        } else {
-          optDefault.text = "Belum ada pengeluaran bulan ini";
-        }
-
-        document.getElementById("gaFleetDetailContainer").style.display = "none";
-      })
-      .getDashboardAnalyticsGA();
   }
 
   function bukaGAArsip() {
@@ -421,75 +383,112 @@
     });
   }
 
-  // ===================================================================================
-  // MODUL BARU: FUEL & COST ANOMALY DETECTOR (FRONTEND)
-  // ===================================================================================
+  // =======================================================================
+  // FUNGSI UPDATE: ANALYTICS SAAS (GRAFIK + ANOMALI)
+  // =======================================================================
+  let chartInstanceGA = null; // Memori agar grafik tidak menumpuk saat di-refresh
 
-  function bukaMenuAnomali() {
-    Swal.fire({
-      title: "Menganalisa Data...",
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
+  // Fungsi merender Grafik Batang ala SaaS Profesional
+  function renderFleetChart(breakdownData) {
+    let canvas = document.getElementById("chartFleetAnalytics");
+    if (!canvas) return;
+    let ctx = canvas.getContext("2d");
+
+    // Hancurkan grafik lama jika sudah ada
+    if (chartInstanceGA) chartInstanceGA.destroy();
+
+    let labels = [];
+    let dataBBM = [];
+    let dataTol = [];
+    let dataLain = [];
+
+    // Pecah data dari Backend untuk kebutuhan grafik
+    for (let fleet in breakdownData) {
+      if (fleet !== "TANPA KARTU (CASH)") {
+        labels.push(fleet);
+        dataBBM.push(breakdownData[fleet].bbm);
+        dataTol.push(breakdownData[fleet].tol);
+        dataLain.push(breakdownData[fleet].parkir + breakdownData[fleet].lain);
+      }
+    }
+
+    // Bangun Stacked Bar Chart (Batang Bertumpuk)
+    chartInstanceGA = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          { label: "BBM", data: dataBBM, backgroundColor: "#10b981", borderRadius: 4 },
+          { label: "TOL", data: dataTol, backgroundColor: "#f59e0b", borderRadius: 4 },
+          { label: "Parkir/Lain", data: dataLain, backgroundColor: "#3b82f6", borderRadius: 4 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 10 } } } },
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+          y: { stacked: true, beginAtZero: true, border: { display: false }, ticks: { font: { size: 10 } } },
+        },
       },
     });
+  }
 
+  // Fungsi Membuka Layar Analytics Master
+  function bukaGAAnalitik() {
+    document.getElementById("gaMainMenu").style.display = "none";
+    document.getElementById("gaSubAnalytics").style.display = "block";
+
+    // Pasang Animasi Loading
+    document.getElementById("gaTotalBulanIni").innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    document.getElementById("tableAnomaliAnalytics").innerHTML = '<tr><td colspan="4" class="text-muted py-4"><i class="fa-solid fa-spinner fa-spin"></i> Memuat...</td></tr>';
+
+    // 1. Tarik Data Utama & Gambar Grafik
     google.script.run
-      .withSuccessHandler(function (dataAnomali) {
-        Swal.close();
+      .withSuccessHandler(function (res) {
+        if (res && res.success === false) return Swal.fire("Error", res.pesan, "error");
 
-        // 1. Sembunyikan menu GA lainnya (Zero-Scroll UI)
-        document.getElementById("gaMainMenu").style.display = "none";
-        document.getElementById("gaSubApplications").style.display = "none";
-        document.getElementById("gaSubAnalytics").style.display = "none";
-        document.getElementById("gaSubArchive").style.display = "none";
+        document.getElementById("gaTotalBulanIni").innerText = "Rp " + (res.totalBulanIni || 0).toLocaleString("id-ID");
+        document.getElementById("gaBreakdownBBM").innerText = "Rp " + (res.bbmBulanIni || 0).toLocaleString("id-ID");
+        document.getElementById("gaBreakdownTol").innerText = "Rp " + (res.tolBulanIni || 0).toLocaleString("id-ID");
+        document.getElementById("gaBreakdownParkir").innerText = "Rp " + ((res.parkirBulanIni || 0) + (res.lainBulanIni || 0)).toLocaleString("id-ID");
 
-        // 2. Buat container dinamis jika belum ada (Tanpa merusak HTML asli)
-        let container = document.getElementById("gaSubAnomali");
-        if (!container) {
-          container = document.createElement("div");
-          container.id = "gaSubAnomali";
-          document.getElementById("gaSubArchive").parentNode.appendChild(container); // Letakkan selevel dengan sub-menu lain
-        }
-        container.style.display = "block";
-
-        // 3. Render Antarmuka Anomali
-        let html = `<button class="btn btn-sm btn-light mb-4 text-muted fw-bold shadow-sm border" style="border-radius: var(--radius-btn);" onclick="kembaliKeMenuGA();"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</button>
-      
-      <div class="card card-form p-2 mb-4 border-danger" style="border-top: 4px solid #e11d48 !important;">
-        <div class="card-header border-0 pb-0 d-flex justify-content-between align-items-center">
-          <h6 class="mb-0 fw-bold text-danger"><i class="fas fa-search-dollar me-2"></i> Deteksi Anomali Biaya (Bulan Ini)</h6>
-          <button class="btn btn-sm btn-outline-dark fw-bold" onclick="bukaSetupFleet('')"><i class="fas fa-cogs me-1"></i> Setup Fleet</button>
-        </div>
-        <div class="card-body p-0 mt-3">
-          <div class="table-responsive shadow-sm" style="border-radius: var(--radius-input); border: 1px solid var(--card-border);">
-            <table class="table table-hover align-middle text-center mb-0" style="font-size: 0.8rem;">
-              <thead class="table-light">
-                <tr><th>Tanggal</th><th>Pengguna</th><th>Plat (Fleet)</th><th>Rasio (Rp/KM)</th><th>Batas Wajar</th><th>Status</th></tr>
-              </thead>
-              <tbody>`;
-
-        if (dataAnomali.length === 0) {
-          html += `<tr><td colspan="6" class="text-center py-5 text-success"><i class="fas fa-shield-alt fa-2x mb-2"></i><br><strong class="fs-6">Kondisi Armada Aman!</strong><br><small class="text-muted">Tidak terdeteksi rasio biaya berlebih pada perjalanan bulan ini.</small></td></tr>`;
-        } else {
-          dataAnomali.forEach((row) => {
-            html += `<tr>
-            <td>${row.tgl}</td>
-            <td><strong class="text-primary">${row.user}</strong></td>
-            <td><strong class="text-dark">${row.fleet}</strong></td>
-            <td class="text-danger fw-bold">Rp ${row.rasioAktual}</td>
-            <td class="text-muted">Rp ${row.batasWajar}</td>
-            <td><span class="badge bg-danger shadow-sm">BOROS</span></td>
-          </tr>`;
+        // Isi Dropdown Cek Detail
+        globalAnalyticsFleet = res.breakdownFleet || {};
+        let selectEl = document.getElementById("gaSelectFleet");
+        selectEl.innerHTML = '<option value="" selected disabled>Pilih Nomor Kartu Fleet...</option>';
+        if (res.listFleet && res.listFleet.length > 0) {
+          res.listFleet.forEach((f) => {
+            selectEl.innerHTML += `<option value="${f}">${f === "TANPA KARTU (CASH)" ? "💸 " : "💳 "}${f}</option>`;
           });
         }
+        document.getElementById("gaFleetDetailContainer").style.display = "none";
 
-        html += `</tbody></table></div></div></div>`;
-        container.innerHTML = html;
+        // Render Grafik Visual
+        renderFleetChart(res.breakdownFleet);
       })
-      .withFailureHandler(function (error) {
-        // INI ADALAH PENANGKAP ERROR. Jika server gagal, loading akan berhenti dan muncul pesan ini.
-        Swal.fire("Terjadi Kesalahan Komunikasi", error.message, "error");
+      .getDashboardAnalyticsGA();
+
+    // 2. Tarik Data Anomali dan masukkan ke Tabel
+    google.script.run
+      .withSuccessHandler(function (dataAnomali) {
+        let html = "";
+        if (dataAnomali.length === 0) {
+          html = `<tr><td colspan="4" class="text-success py-5"><i class="fas fa-shield-alt fa-2x mb-2"></i><br>Kondisi Armada Aman!</td></tr>`;
+        } else {
+          dataAnomali.forEach((row) => {
+            let tglPendek = row.tgl.substring(0, 5); // Tampilkan "DD/MM" agar rapi
+            let namaPendek = row.user.split(" ")[0]; // Tampilkan nama panggilan
+            html += `<tr>
+              <td><strong>${tglPendek}</strong><br><small class="text-muted">${namaPendek}</small></td>
+              <td><strong class="text-dark">${row.fleet}</strong></td>
+              <td class="text-danger fw-bold">Rp${row.rasioAktual}<br><small class="text-muted fw-normal">Bts: ${row.batasWajar}</small></td>
+              <td><span class="badge bg-danger">BOROS</span></td>
+            </tr>`;
+          });
+        }
+        document.getElementById("tableAnomaliAnalytics").innerHTML = html;
       })
       .getDataAnomaliRealtime();
   }
@@ -602,4 +601,145 @@
       renderTabelIzinGA(filteredData); // Tampilkan yang cocok dengan filter saja
     }
   }
+  // =======================================================================
+  // FUNGSI BARU: CRUD PENGATURAN MASTER FLEET
+  // =======================================================================
+  function bukaGAMaster() {
+    document.getElementById("gaMainMenu").style.display = "none";
+    document.getElementById("gaSubMaster").style.display = "block";
+    loadMasterFleet();
+  }
+
+  function loadMasterFleet() {
+    document.getElementById("tableMasterFleetGA").innerHTML = '<tr><td colspan="5" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin text-info"></i> Memuat master data...</td></tr>';
+    google.script.run
+      .withSuccessHandler(function (res) {
+        let html = "";
+        if (res.length === 0) {
+          html = '<tr><td colspan="5" class="text-center text-muted py-4">Belum ada data armada.</td></tr>';
+        } else {
+          res.forEach((r) => {
+            html += `<tr>
+              <td><strong class="text-dark">${r.plat}</strong></td>
+              <td>${r.merk} <br><small class="text-muted">${r.tipe}</small></td>
+              <td><span class="badge bg-light text-dark border">${r.bbm}</span></td>
+              <td class="text-danger fw-bold">Rp ${r.batas.toLocaleString("id-ID")} / KM</td>
+              <td>
+                <button class="btn btn-sm btn-light border text-primary shadow-sm me-1" onclick="bukaSetupFleet('${r.plat}', '${r.merk}', '${r.tipe}', '${r.bbm}', '${r.batas}')" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-sm btn-light border text-danger shadow-sm" onclick="hapusFleetAction('${r.plat}')" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>`;
+          });
+        }
+        document.getElementById("tableMasterFleetGA").innerHTML = html;
+      })
+      .getMasterFleetData();
+  }
+
+  // Mengubah Fungsi Buka Modal Setup agar mendukung Edit & Tambah
+  function bukaSetupFleet(plat, merk, tipe, bbm, batas) {
+    document.getElementById("inputKartuFleet").value = plat;
+    document.getElementById("inputMerk").value = merk;
+    document.getElementById("inputTipe").value = tipe;
+    document.getElementById("inputBBM").value = bbm;
+    document.getElementById("inputBatasBiaya").value = batas;
+
+    // Jika sedang edit (plat tidak kosong), kunci input Plat. Jika tambah baru, buka kuncinya.
+    document.getElementById("inputKartuFleet").readOnly = plat !== "";
+
+    let modalConfig = new bootstrap.Modal(document.getElementById("modalAturFleet"));
+    modalConfig.show();
+  }
+
+  // Fungsi Hapus Armada
+  function hapusFleetAction(platTarget) {
+    Swal.fire({
+      title: "Hapus Armada?",
+      text: "Plat " + platTarget + " akan dihapus dari sistem Anomali.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#e11d48",
+      confirmButtonText: "Ya, Hapus!",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({ title: "Menghapus...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res.success) {
+              Swal.fire("Terhapus!", res.pesan, "success");
+              loadMasterFleet(); // Refresh tabel otomatis
+            } else {
+              Swal.fire("Gagal", res.pesan, "error");
+            }
+          })
+          .hapusMasterFleet(platTarget);
+      }
+    });
+  }
+
+  // =======================================================================
+  // FUNGSI BARU: PROSES CETAK LAPORAN PDF (MENARIK CANVAS & DOM)
+  // =======================================================================
+  function prosesCetakLaporanGA() {
+    Swal.fire({ title: "Menyiapkan PDF...", text: "Memotret grafik dan menyusun laporan...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    // 1. Potret Grafik dari Canvas menjadi format Base64 (Gambar)
+    let canvas = document.getElementById("chartFleetAnalytics");
+    let chartBase64 = canvas.toDataURL("image/png");
+
+    // 2. Kumpulkan data anomali langsung dari Tabel HTML yang sedang tampil (Mencegah kerja server dua kali)
+    let anomaliData = [];
+    let barisTabel = document.querySelectorAll("#tableAnomaliAnalytics tr");
+
+    // Pastikan bukan pesan "Aman" atau "Memuat"
+    if (barisTabel.length > 0 && barisTabel[0].innerText.indexOf("Aman") === -1 && barisTabel[0].innerText.indexOf("Memuat") === -1) {
+      barisTabel.forEach((tr) => {
+        let tds = tr.querySelectorAll("td");
+        if (tds.length >= 4) {
+          let teksRasio = tds[2].innerText;
+          anomaliData.push({
+            tgl: tds[0].querySelector("strong") ? tds[0].querySelector("strong").innerText : "",
+            user: tds[0].querySelector("small") ? tds[0].querySelector("small").innerText : "",
+            fleet: tds[1].innerText,
+            rasioAktual: teksRasio.split("\n")[0].replace("Rp", "").trim(),
+            batasWajar: teksRasio.includes("Bts:") ? teksRasio.split("Bts:")[1].trim() : "0",
+          });
+        }
+      });
+    }
+
+    // 3. Bungkus semua data layar ke dalam Payload
+    let dateNow = new Date();
+    let payload = {
+      waktuCetak: dateNow.toLocaleString("id-ID"),
+      waktuCetakKotor: dateNow.getTime(), // Untuk nama file yang unik
+      totalAll: document.getElementById("gaTotalBulanIni").innerText,
+      totalBBM: document.getElementById("gaBreakdownBBM").innerText,
+      totalTol: document.getElementById("gaBreakdownTol").innerText,
+      totalLain: document.getElementById("gaBreakdownParkir").innerText,
+      chartImg: chartBase64,
+      anomali: anomaliData,
+    };
+
+    // 4. Kirim ke Mesin Pencetak di Backend
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res.success) {
+          Swal.close();
+          // Trigger Download File Otomatis ke HP/Laptop user
+          let link = document.createElement("a");
+          link.href = "data:application/pdf;base64," + res.base64;
+          link.download = res.fileName;
+          link.click();
+          Swal.fire("Berhasil!", "Laporan PDF Analytics berhasil diunduh.", "success");
+        } else {
+          Swal.fire("Gagal", res.pesan, "error");
+        }
+      })
+      .cetakLaporanGAPDFServer(payload);
+  }
+
+  // PERBAIKAN: Refresh tabel Master Fleet saat Simpan Setup
+  // Ubah fungsi simpanSetupFleet() kamu yang lama dan tambahkan baris 'loadMasterFleet();'
+  // tepat di bawah baris 'document.getElementById("formSetupFleet").reset();'
 </script>
